@@ -231,7 +231,7 @@ func TestLoggerSetAppendersOverwritesExising(t *testing.T) {
 }
 
 func TestLoggerSetAppendersAcceptsMultipleAppenders(t *testing.T) {
-	want := "*log.emptyAppender-*log.consoleAppender"
+	want := "*logo.emptyAppender-*logo.consoleAppender"
 	defer reset()
 	AddAppender("TestAppender", EmptyAppender)
 	l := New("Test", "debug")
