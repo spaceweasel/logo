@@ -221,3 +221,31 @@ func TestTestAppenderCloseSetsClosed(t *testing.T) {
 		t.Errorf("Closed got %t, want %t", got, want)
 	}
 }
+
+func TestTestAppenderReset(t *testing.T) {
+	appender := newTestAppender()
+	appender.SetFormat("%d-%s%s%n%logger (%f:%line)%n")
+	m := testMessage()
+	appender.Append(m)
+	appender.Close()
+
+	appender.Reset()
+
+	var tests = []struct {
+		property string
+		f        func() interface{}
+		want     interface{}
+	}{
+		{"Closed", func() interface{} { return appender.Closed }, false},
+		{"Format", func() interface{} { return appender.Format }, defaultFormat},
+		{"Messages count", func() interface{} { return len(appender.Messages) }, 0},
+		{"LogMessages count", func() interface{} { return len(appender.logMessages) }, 0},
+	}
+
+	for _, test := range tests {
+		got := test.f()
+		if got != test.want {
+			t.Errorf("%s got %v, want %v", test.property, got, test.want)
+		}
+	}
+}

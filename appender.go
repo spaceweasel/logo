@@ -241,3 +241,11 @@ func (a *testAppender) SetFormat(format string) error {
 	a.Format = format
 	return a.consoleAppender.SetFormat(format)
 }
+
+func (a *testAppender) Reset() {
+	a.logMessages = []*LogMessage{}
+	a.Messages = []string{}
+	a.Closed = false
+	a.buf.Reset()
+	a.SetFormat(defaultFormat)
+}
