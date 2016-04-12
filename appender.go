@@ -2,6 +2,7 @@ package logo
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -186,4 +187,57 @@ func (a *rollingFileAppender) Close() {
 		a.Writer = nil
 		a.file = nil
 	}
+}
+
+var TestAppender = newTestAppender()
+
+func newTestAppender() *testAppender {
+	b := new(bytes.Buffer)
+	a := testAppender{
+		buf:             b,
+		consoleAppender: &consoleAppender{out: b},
+	}
+	a.SetFormat(defaultFormat)
+	return &a
+}
+
+type testAppender struct {
+	*consoleAppender
+	logMessages []*LogMessage
+	Closed      bool
+	Format      string
+	Messages    []string
+	buf         *bytes.Buffer
+}
+
+func (a *testAppender) Append(m *LogMessage) {
+	n := &LogMessage{
+		format:    m.format,
+		severity:  m.severity,
+		name:      m.name,
+		file:      m.file,
+		line:      m.line,
+		ctx:       m.ctx,
+		timestamp: make([]byte, 26),
+	}
+	for _, a := range m.args {
+		n.args = append(n.args, a)
+	}
+	for i, b := range m.timestamp {
+		n.timestamp[i] = b
+	}
+	a.logMessages = append(a.logMessages, n)
+	a.consoleAppender.Append(m)
+	s := string(a.buf.Bytes())
+	a.Messages = append(a.Messages, s)
+}
+
+func (a *testAppender) Close() {
+	a.consoleAppender.Close()
+	a.Closed = true
+}
+
+func (a *testAppender) SetFormat(format string) error {
+	a.Format = format
+	return a.consoleAppender.SetFormat(format)
 }

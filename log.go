@@ -36,14 +36,13 @@ func severityFromName(n string) severity {
 			return severity(i)
 		}
 	}
+	// TODO: Should this return an error instead?
 	return severity(0)
 }
 
 type logManager struct {
 	appenders map[string]Appender
-	// TODO: expose these level properties
-	level       severity
-	manageLevel bool
+	level     severity
 }
 
 var manager = newLogManager()
@@ -61,25 +60,19 @@ func newDefaultLogger() *Logger {
 	return l
 }
 
-// func (l *logManager) Close() {
-// 	for _, a := range l.appenders {
-// 		a.Close()
-// 	}
-// }
-
 func Close() {
 	for _, a := range manager.appenders {
 		a.Close()
 	}
 }
 
-func AddAppender(name string, a Appender) {
+func AddAppender(name string, a Appender) error {
+	if _, ok := manager.appenders[name]; ok {
+		return fmt.Errorf("appender already exist")
+	}
 	manager.appenders[name] = a
+	return nil
 }
-
-// func (l *logManager) AddAppender(name string, a Appender) {
-// 	l.appenders[name] = a
-// }
 
 type LogMessage struct {
 	bytes.Buffer
@@ -113,22 +106,50 @@ func (l *LogMessage) setTime(t time.Time) {
 	padw(l.timestamp, 20, int(micro), 6)
 }
 
-var timenow = time.Now
+func SetManagerLevel(level string) {
+	sev := severityFromName(level)
+	manager.level = sev
+}
+
+var timenow = time.Now // to facilitate testing
+
+var pool = make(chan *LogMessage, 50)
+
+func getMessage() *LogMessage {
+	var m *LogMessage
+	select {
+	case m = <-pool:
+		m.Reset()
+	default:
+		m = &LogMessage{
+			timestamp: make([]byte, 26),
+		}
+	}
+	return m
+}
+
+func putMessage(m *LogMessage) {
+	// ditch large buffers
+	if m.Len() >= 250 {
+		return
+	}
+	select {
+	case pool <- m:
+	default: // pool full - continue
+	}
+}
 
 func (l *logManager) output(callDepth int, appenders []Appender, s severity, name, ctx string, format string, v ...interface{}) {
-	if manager.manageLevel && s < manager.level {
+	if manager.level > debug && s < manager.level {
 		return
 	}
 
-	// TODO: get these from a pool
-	msg := &LogMessage{
-		severity:  severityName[s],
-		name:      name,
-		ctx:       ctx,
-		args:      v,
-		format:    format,
-		timestamp: make([]byte, 26),
-	}
+	msg := getMessage()
+	msg.severity = severityName[s]
+	msg.name = name
+	msg.ctx = ctx
+	msg.args = v
+	msg.format = format
 
 	_, file, line, ok := runtime.Caller(callDepth)
 	if !ok {
@@ -146,6 +167,7 @@ func (l *logManager) output(callDepth int, appenders []Appender, s severity, nam
 	for _, a := range appenders {
 		a.Append(msg)
 	}
+	putMessage(msg)
 }
 
 const digits = "0123456789" // helper to convert int to char
@@ -170,27 +192,12 @@ func padw(buf []byte, i, n, w int) {
 func New(name string, level string) *Logger {
 	sev := severityFromName(level)
 	return &Logger{
-		level: sev,
-		name:  name,
-		a:     []Appender{ConsoleAppender},
-		//lm:        manager,
+		level:     sev,
+		name:      name,
+		a:         []Appender{ConsoleAppender},
 		callDepth: 2,
 	}
 }
-
-// func (l *logManager) NewLogger(name string, level string) *Logger {
-// 	sev := severityFromName(level)
-// 	if l.manageLevel && sev < l.level {
-// 		sev = l.level
-// 	}
-// 	return &Logger{
-// 		level:     sev,
-// 		name:      name,
-// 		a:         []Appender{ConsoleAppender},
-// 		lm:        l,
-// 		callDepth: 2,
-// 	}
-// }
 
 type Logger struct {
 	lm        *logManager
@@ -214,7 +221,6 @@ func (l *Logger) SetAppenders(names ...string) {
 
 func (l *Logger) WithContext(context fmt.Stringer) *Logger {
 	return &Logger{
-		//lm:      manager,
 		level:   l.level,
 		name:    l.name,
 		a:       l.a,
@@ -292,7 +298,7 @@ func (l *Logger) Panicf(format string, v ...interface{}) {
 	panic(fmt.Sprintf(format, v...))
 }
 
-var exit = func(i int) { os.Exit(i) }
+var exit = func(i int) { os.Exit(i) } // to facilitate testing
 
 func (l *Logger) Fatal(v ...interface{}) {
 	manager.output(l.callDepth, l.a, fatal, l.name, l.context, "", v...)

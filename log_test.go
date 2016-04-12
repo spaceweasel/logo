@@ -10,15 +10,15 @@ import (
 // IMPORTANT: Keep this as the first test to ensure line number remains the same
 func TestLoggerOutputSetsMessageLine(t *testing.T) {
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 
 	want := 19 // the next line
 	l.Debug("A test message")
 
-	messages := appender.messages
+	messages := appender.logMessages
 
 	if len(messages) != 1 {
 		t.Errorf("Messages count got %d, want 1", len(messages))
@@ -34,14 +34,14 @@ func TestLoggerOutputSetsMessageLine(t *testing.T) {
 // IMPORTANT: Keep this as the second test to ensure line number remains the same
 func TestDefaultLoggerOutputSetsMessageLine(t *testing.T) {
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	SetAppenders("test")
 
 	want := 42 // the next line
 	Debug("A test message")
 
-	messages := appender.messages
+	messages := appender.logMessages
 
 	if len(messages) != 1 {
 		t.Errorf("Messages count got %d, want 1", len(messages))
@@ -176,9 +176,25 @@ func TestAddAppenderAddsToCollection(t *testing.T) {
 	}
 }
 
-func TestAddAppenderOverwritesAppenderWithSameName(t *testing.T) {
-	want := reflect.TypeOf(&emptyAppender{})
+func TestAddAppenderReturnsErrorWhenCalledWithSameName(t *testing.T) {
+	want := "appender already exist"
 	defer reset()
+
+	err := AddAppender("console", EmptyAppender)
+	if err == nil {
+		t.Errorf("AddAppender error got <nil>, want %q", want)
+	}
+	got := err.Error()
+
+	if got != want {
+		t.Errorf("AddAppender error got %q, want %q", got, want)
+	}
+}
+
+func TestAddAppenderUpdatesAppenderWithSameName(t *testing.T) {
+	want := ConsoleAppender
+	defer reset()
+	//conApp := ConsoleAppender
 	AddAppender("console", EmptyAppender)
 
 	appenders := manager.appenders
@@ -188,7 +204,7 @@ func TestAddAppenderOverwritesAppenderWithSameName(t *testing.T) {
 	}
 
 	a, _ := appenders["console"]
-	got := reflect.TypeOf(a)
+	got := a
 
 	if got != want {
 		t.Errorf("Console appender got %v, want %v", got, want)
@@ -211,7 +227,7 @@ func TestNewLoggerAddsConsoleAppender(t *testing.T) {
 	}
 }
 
-func TestLoggerSetAppendersOverwritesExising(t *testing.T) {
+func TestLoggerSetAppendersOverwritesExisting(t *testing.T) {
 	want := reflect.TypeOf(&emptyAppender{})
 	defer reset()
 	AddAppender("TestAppender", EmptyAppender)
@@ -270,24 +286,9 @@ func TestLoggerSetAppendersPanicsWhenUnrecognisedAppender(t *testing.T) {
 	l.SetAppenders("UnknownAppender")
 }
 
-type testAppender struct {
-	messages []*LogMessage
-	closed   bool
-}
-
-func (a *testAppender) Append(m *LogMessage) {
-	a.messages = append(a.messages, m)
-}
-
-func (a *testAppender) Close() {
-	a.closed = true
-}
-
-func (a *testAppender) SetFormat(format string) error { return nil }
-
 func TestLogManagerCloseCallsAllAppenders(t *testing.T) {
 	defer reset()
-	appenders := []Appender{&testAppender{}, &testAppender{}, &testAppender{}, &testAppender{}}
+	appenders := []Appender{newTestAppender(), newTestAppender(), newTestAppender(), newTestAppender()}
 	names := []string{}
 	for i, a := range appenders {
 		n := fmt.Sprintf("testAppender%d", i)
@@ -298,7 +299,7 @@ func TestLogManagerCloseCallsAllAppenders(t *testing.T) {
 
 	want := true
 	for i, a := range appenders {
-		got := (a.(*testAppender)).closed
+		got := (a.(*testAppender)).Closed
 
 		if got != want {
 			t.Errorf("%s.Close() called: got %t, want %t", names[i], got, want)
@@ -313,13 +314,13 @@ func TestLoggerDebugfSendsPopulatedMsgToAppender(t *testing.T) {
 		return t
 	}
 
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 	l.Debugf("A test message %d", 56)
 
-	messages := appender.messages
+	messages := appender.logMessages
 
 	if len(messages) != 1 {
 		t.Errorf("Messages count: got %d, want 1", len(messages))
@@ -360,12 +361,12 @@ func TestDefaultLoggerDebugfSendsPopulatedMsgToAppender(t *testing.T) {
 		return t
 	}
 
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	SetAppenders("test")
 	Debugf("A test message %d", 56)
 
-	messages := appender.messages
+	messages := appender.logMessages
 
 	if len(messages) != 1 {
 		t.Errorf("Messages count: got %d, want 1", len(messages))
@@ -401,7 +402,7 @@ func TestDefaultLoggerDebugfSendsPopulatedMsgToAppender(t *testing.T) {
 
 func TestLoggerSendsMsgToEachAppender(t *testing.T) {
 	defer reset()
-	appenders := []Appender{&testAppender{}, &testAppender{}, &testAppender{}, &testAppender{}}
+	appenders := []Appender{newTestAppender(), newTestAppender(), newTestAppender(), newTestAppender()}
 	names := []string{}
 	for i, a := range appenders {
 		n := fmt.Sprintf("testAppender%d", i)
@@ -432,7 +433,7 @@ func TestLoggerSendsMsgToEachAppender(t *testing.T) {
 	}
 
 	for i, a := range appenders {
-		messages := (a.(*testAppender)).messages
+		messages := (a.(*testAppender)).logMessages
 
 		if len(messages) != 1 {
 			t.Errorf("%s messages count got %d, want 1", names[i], len(messages))
@@ -455,14 +456,14 @@ func TestLoggerOutputPadsDateElementsWithLeadingZeros(t *testing.T) {
 	}
 	defer reset()
 
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 
 	l.Debug("A test message")
 
-	messages := appender.messages
+	messages := appender.logMessages
 
 	if len(messages) != 1 {
 		t.Errorf("Messages count: got %d, want 1", len(messages))
@@ -486,15 +487,15 @@ func (l logContext) String() string {
 func TestLoggerWithContextSetsLogMessageContext(t *testing.T) {
 	want := "CorrelationId: 45"
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 
 	cl := l.WithContext(logContext{correlationID: 45})
 	cl.Debugf("A test message %d", 56)
 
-	messages := appender.messages
+	messages := appender.logMessages
 
 	if len(messages) != 1 {
 		t.Errorf("Messages count: got %d, want 1", len(messages))
@@ -510,8 +511,8 @@ func TestLoggerWithContextSetsLogMessageContext(t *testing.T) {
 func TestLoggerWithContextUsesParentAppenders(t *testing.T) {
 	want := "A test message %dAnother test message %d"
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 
@@ -519,7 +520,7 @@ func TestLoggerWithContextUsesParentAppenders(t *testing.T) {
 	cl.Debugf("A test message %d", 56)
 	l.Debugf("Another test message %d", 23)
 
-	messages := appender.messages
+	messages := appender.logMessages
 
 	if len(messages) != 2 {
 		t.Errorf("Messages count: got %d, want 2", len(messages))
@@ -532,17 +533,17 @@ func TestLoggerWithContextUsesParentAppenders(t *testing.T) {
 	}
 }
 
-func TestLoggerDebugfIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerDebugfIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "info")
 	l.SetAppenders("test")
 
 	l.Debugf("A test message %d", 56)
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
@@ -552,145 +553,145 @@ func TestLoggerDebugfIgnoresIfLevelSetAbove(t *testing.T) {
 func TestLoggerWithContextIgnoresIfParentLoggerLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "info")
 	l.SetAppenders("test")
 
 	cl := l.WithContext(logContext{correlationID: 45})
 	cl.Debugf("A test message %d", 56)
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerDebugIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerDebugIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "info")
 	l.SetAppenders("test")
 
 	l.Debug("A test message")
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerInfofIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerInfofIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
 	l.Infof("A test message %d", 56)
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerInfoIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerInfoIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
 	l.Info("A test message")
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerWarnfIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerWarnfIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
 	l.Warnf("A test message %d", 56)
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerWarnIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerWarnIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
 	l.Warn("A test message")
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerErrorfIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerErrorfIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
 	l.Errorf("A test message %d", 56)
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerErrorIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerErrorIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
 	l.Error("A test message")
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerPanicfIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerPanicfIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
@@ -699,18 +700,18 @@ func TestLoggerPanicfIgnoresIfLevelSetAbove(t *testing.T) {
 		l.Panicf("A test message %d", 56)
 	}()
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
 	}
 }
 
-func TestLoggerPanicIgnoresIfLevelSetAbove(t *testing.T) {
+func TestLoggerPanicIgnoresWhenLevelSetAbove(t *testing.T) {
 	want := 0
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
@@ -719,7 +720,45 @@ func TestLoggerPanicIgnoresIfLevelSetAbove(t *testing.T) {
 		l.Panic("A test message")
 	}()
 
-	got := len(appender.messages)
+	got := len(appender.logMessages)
+
+	if got != want {
+		t.Errorf("Messages count: got %d, want %d", got, want)
+	}
+}
+
+func TestLoggerIgnoresWhenManagerLevelSetAbove(t *testing.T) {
+	want := 0
+	defer reset()
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	SetManagerLevel("fatal")
+
+	l.Info("A test message")
+
+	got := len(appender.logMessages)
+
+	if got != want {
+		t.Errorf("Messages count: got %d, want %d", got, want)
+	}
+}
+
+func TestLoggerDoesNotIgnoreWhenManagerLevelSetEqual(t *testing.T) {
+	want := 1
+	defer reset()
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	SetManagerLevel("info")
+
+	l.Info("A test message")
+
+	got := len(appender.logMessages)
 
 	if got != want {
 		t.Errorf("Messages count: got %d, want %d", got, want)
@@ -729,8 +768,8 @@ func TestLoggerPanicIgnoresIfLevelSetAbove(t *testing.T) {
 func TestLoggerSetsLogMessageSeverity(t *testing.T) {
 	exit = func(i int) {}
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 	s := "test"
@@ -761,7 +800,7 @@ func TestLoggerSetsLogMessageSeverity(t *testing.T) {
 			test.f()
 		}()
 
-		if got := appender.messages[i].severity; got != test.want {
+		if got := appender.logMessages[i].severity; got != test.want {
 			t.Errorf("%s: got %v, want %v", test.property, got, test.want)
 		}
 	}
@@ -771,8 +810,8 @@ func TestLoggerFatalExitsWithCorrectCode(t *testing.T) {
 	var ec int
 	exit = func(i int) { ec = i }
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 	s := "test"
@@ -804,8 +843,8 @@ func TestLoggerFatalExitsWithCorrectCode(t *testing.T) {
 func TestLoggerPanicCallsStillPanicWhenSeverityAbovePanic(t *testing.T) {
 	exit = func(i int) {}
 	defer reset()
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	l := New("Test", "fatal")
 	l.SetAppenders("test")
 
@@ -840,8 +879,8 @@ func TestDefaultLoggerSetsLogMessageSeverity(t *testing.T) {
 	defer reset()
 	exit = func(i int) {}
 
-	appender := testAppender{}
-	AddAppender("test", &appender)
+	appender := newTestAppender()
+	AddAppender("test", appender)
 	SetAppenders("test")
 
 	s := "test"
@@ -871,7 +910,7 @@ func TestDefaultLoggerSetsLogMessageSeverity(t *testing.T) {
 			defer func() { recover() }()
 			test.f()
 		}()
-		if got := appender.messages[i].severity; got != test.want {
+		if got := appender.logMessages[i].severity; got != test.want {
 			t.Errorf("%s: got %v, want %v", test.property, got, test.want)
 		}
 	}

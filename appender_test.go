@@ -145,3 +145,79 @@ func TestLogNameAddsDateToFilename(t *testing.T) {
 		t.Errorf("Logname got %q, want %q", got, want)
 	}
 }
+
+func TestTestAppenderWithDefaultFormat(t *testing.T) {
+	want := "2016-04-09 18:03:28.342017 INFO (sample.go:456) - Test 34 (56)\n"
+
+	appender := TestAppender
+	m := testMessage()
+	appender.Append(m)
+	msgs := appender.Messages
+	if len(msgs) != 1 {
+		t.Errorf("Message count got %d, want 1", len(msgs))
+		return
+	}
+	got := msgs[0]
+	if got != want {
+		t.Errorf("DefaultFormat got %q, want %q", got, want)
+	}
+}
+
+func TestTestAppenderSetFormatMessage(t *testing.T) {
+	want := "2016-04-09 18:03:28.342017-INFOINFO\nLogger (sample.go:456)\n"
+
+	appender := newTestAppender()
+	appender.SetFormat("%d-%s%s%n%logger (%f:%line)%n")
+	m := testMessage()
+	appender.Append(m)
+	msgs := appender.Messages
+	if len(msgs) != 1 {
+		t.Errorf("Message count got %d, want 1", len(msgs))
+		return
+	}
+	got := msgs[0]
+	if got != want {
+		t.Errorf("CustomFormat got %q, want %q", got, want)
+	}
+}
+
+func TestTestAppenderSetFormatStoresFormat(t *testing.T) {
+	want := "%d-%s%s%n%logger (%f:%line)%n"
+
+	appender := newTestAppender()
+	appender.SetFormat("%d-%s%s%n%logger (%f:%line)%n")
+	got := appender.Format
+	if got != want {
+		t.Errorf("Format got %q, want %q", got, want)
+	}
+}
+
+func TestTestAppenderSetFormatReturnsErrorWhenInvalidSyntax(t *testing.T) {
+	want := "invalid syntax at position 5, bla%%%h blah"
+
+	appender := newTestAppender()
+	err := appender.SetFormat("bla%%%h blah")
+	if err == nil {
+		t.Errorf("Error <nil>, want %q", want)
+		return
+	}
+	got := err.Error()
+	if got != want {
+		t.Errorf("Error got %q, want %q", got, want)
+	}
+}
+
+func TestTestAppenderCloseSetsClosed(t *testing.T) {
+	want := true
+
+	appender := newTestAppender()
+	if appender.Closed {
+		t.Errorf("Appender already closed")
+		return
+	}
+	appender.Close()
+	got := appender.Closed
+	if got != want {
+		t.Errorf("Closed got %t, want %t", got, want)
+	}
+}

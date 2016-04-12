@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// TODO: Add formatting options e.g. alignment
+// TODO: Add formatting options e.g. alignment, customised formatting
 
 type Formatter interface {
 	Format(l *LogMessage)
