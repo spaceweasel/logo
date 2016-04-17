@@ -94,27 +94,7 @@ type LogMessage struct {
 	file      string
 	line      int
 	ctx       string
-	timestamp []byte
-}
-
-func (l *LogMessage) setTime(t time.Time) {
-	year, month, day := t.Date()
-	hour, minute, second := t.Clock()
-	micro := t.Nanosecond() / 1000
-	// yyyy-mm-dd hh:mm:ss.uuuuuu
-	padw(l.timestamp, 0, int(year), 4)
-	l.timestamp[4] = '-'
-	pad2(l.timestamp, 5, int(month))
-	l.timestamp[7] = '-'
-	pad2(l.timestamp, 8, int(day))
-	l.timestamp[10] = ' '
-	pad2(l.timestamp, 11, int(hour))
-	l.timestamp[13] = ':'
-	pad2(l.timestamp, 14, int(minute))
-	l.timestamp[16] = ':'
-	pad2(l.timestamp, 17, int(second))
-	l.timestamp[19] = '.'
-	padw(l.timestamp, 20, int(micro), 6)
+	timestamp time.Time
 }
 
 // SetManagerLevel sets the minimum severity level for logging.
@@ -137,9 +117,7 @@ func getMessage() *LogMessage {
 	case m = <-pool:
 		m.Reset()
 	default:
-		m = &LogMessage{
-			timestamp: make([]byte, 26),
-		}
+		m = &LogMessage{}
 	}
 	return m
 }
@@ -152,25 +130,6 @@ func putMessage(m *LogMessage) {
 	select {
 	case pool <- m:
 	default: // pool full - continue
-	}
-}
-
-const digits = "0123456789" // helper to convert int to char
-
-func pad2(buf []byte, i, n int) {
-	buf[i+1] = digits[n%10]
-	n /= 10
-	buf[i] = digits[n%10]
-}
-
-func padw(buf []byte, i, n, w int) {
-	j := w - 1
-	for ; j >= 0 && n > 0; j-- {
-		buf[i+j] = digits[n%10]
-		n /= 10
-	}
-	for ; j >= 0; j-- {
-		buf[i+j] = '0'
 	}
 }
 
@@ -229,7 +188,8 @@ func (l *Logger) output(file string, line int, s severity, format string, args .
 	msg.format = format
 	msg.file = file
 	msg.line = line
-	msg.setTime(timenow().UTC())
+	msg.timestamp = timenow()
+
 	for _, a := range l.appenders {
 		a.Append(msg)
 	}

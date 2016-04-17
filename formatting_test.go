@@ -1,16 +1,19 @@
 package logo
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func testMessage() *LogMessage {
-	d := []byte("2016-04-09 18:03:28.342017")
+	t, _ := time.Parse("2006-01-02T15:04:05.999999", "2016-04-09T18:03:28.3420170")
 	msg := LogMessage{
 		severity:  info,
 		name:      "Logger",
 		ctx:       "{ctx: 2}",
 		args:      []interface{}{34, 56},
 		format:    "Test %d (%d)",
-		timestamp: d,
+		timestamp: t,
 		file:      "sample.go",
 		line:      456,
 	}
@@ -24,7 +27,7 @@ func TestFormatterNames(t *testing.T) {
 		want     string
 	}{
 		{"literalFormatter", &literalFormatter{}, ""},
-		{"dateFormatter", &dateFormatter{}, "date,d,"},
+		{"dateFormatter", newDateFormatter(), "date,d,"},
 		{"severityFormatter", &severityFormatter{}, "severity,s,"},
 		{"loggerFormatter", &loggerFormatter{}, "logger,"},
 		{"fileFormatter", &fileFormatter{}, "file,f,"},
@@ -52,7 +55,7 @@ func TestFormatterResults(t *testing.T) {
 		want     string
 	}{
 		{"literalFormatter", &literalFormatter{s: " Test:["}, " Test:["},
-		{"dateFormatter", &dateFormatter{}, "2016-04-09 18:03:28.342017"},
+		{"dateFormatter", newDateFormatter(), "2016-04-09 18:03:28.342017"},
 		{"severityFormatter", &severityFormatter{}, "INFO"},
 		{"loggerFormatter", &loggerFormatter{}, "Logger"},
 		{"fileFormatter", &fileFormatter{}, "sample.go"},

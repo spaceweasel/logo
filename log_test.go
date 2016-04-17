@@ -340,7 +340,7 @@ func TestLoggerDebugfSendsPopulatedMsgToAppender(t *testing.T) {
 		{"name", func(m *LogMessage) interface{} { return m.name }, "Test"},
 		{"file", func(m *LogMessage) interface{} { return m.file }, "log_test.go"},
 		{"ctx", func(m *LogMessage) interface{} { return m.ctx }, ""},
-		{"timestamp", func(m *LogMessage) interface{} { return string(m.timestamp) }, "2016-11-19 15:14:15.123456"},
+		{"timestamp", func(m *LogMessage) interface{} { return m.timestamp.Format("2006-01-02 15:04:05.000000") }, "2016-11-19 15:14:15.123456"},
 	}
 
 	for _, test := range tests {
@@ -386,7 +386,7 @@ func TestDefaultLoggerDebugfSendsPopulatedMsgToAppender(t *testing.T) {
 		{"name", func(m *LogMessage) interface{} { return m.name }, ""},
 		{"file", func(m *LogMessage) interface{} { return m.file }, "log_test.go"},
 		{"ctx", func(m *LogMessage) interface{} { return m.ctx }, ""},
-		{"timestamp", func(m *LogMessage) interface{} { return string(m.timestamp) }, "2016-11-19 15:14:15.123456"},
+		{"timestamp", func(m *LogMessage) interface{} { return m.timestamp.Format("2006-01-02 15:04:05.000000") }, "2016-11-19 15:14:15.123456"},
 	}
 
 	for _, test := range tests {
@@ -465,8 +465,7 @@ func TestLoggerOutputPadsDateElementsWithLeadingZeros(t *testing.T) {
 		t.Errorf("Messages count: got %d, want 1", len(messages))
 		return
 	}
-
-	got := string(messages[0].timestamp)
+	got := messages[0].timestamp.Format("2006-01-02 15:04:05.000000")
 	if got != want {
 		t.Errorf("Message.timestamp: got %q, want %q", got, want)
 	}
@@ -946,7 +945,7 @@ func TestCaptureStandardLogSendsPopulatedMsgToAppender(t *testing.T) {
 		{"name", func(m *LogMessage) interface{} { return m.name }, ""},
 		{"file", func(m *LogMessage) interface{} { return m.file }, "log_test.go"},
 		{"ctx", func(m *LogMessage) interface{} { return m.ctx }, ""},
-		{"timestamp", func(m *LogMessage) interface{} { return string(m.timestamp) }, "2016-11-19 15:14:15.123456"},
+		{"timestamp", func(m *LogMessage) interface{} { return m.timestamp.Format("2006-01-02 15:04:05.000000") }, "2016-11-19 15:14:15.123456"},
 	}
 
 	for _, test := range tests {

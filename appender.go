@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-//var defaultFormat = "%date %severity %logger - %message%newline"
 var defaultFormat = "%date %severity (%file:%line) - %message%newline"
 
 // Appender is the interface describing a logger appender.
@@ -283,14 +282,12 @@ func (a *testAppender) Append(m *LogMessage) {
 		file:      m.file,
 		line:      m.line,
 		ctx:       m.ctx,
-		timestamp: make([]byte, 26),
+		timestamp: m.timestamp,
 	}
 	for _, a := range m.args {
 		n.args = append(n.args, a)
 	}
-	for i, b := range m.timestamp {
-		n.timestamp[i] = b
-	}
+
 	a.logMessages = append(a.logMessages, n)
 	a.consoleAppender.Append(m)
 	s := string(a.buf.Bytes())
