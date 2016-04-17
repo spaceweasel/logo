@@ -133,6 +133,9 @@ func putMessage(m *LogMessage) {
 	}
 }
 
+// TODO: keep track of new loggers in a map to enable a
+// logo.GetNamedLogger(s string) method.
+
 // New returns a new logger instance.
 // Name can be any string value and is included in any log output
 // (if specified in the appender format string). Normally this would be
@@ -463,12 +466,11 @@ func Fatal(args ...interface{}) {
 	defaultLogger.Fatal(args...)
 }
 
+// CaptureStandardLog hooks into the standard go log package and redirects
+// the output to appenders.
 func CaptureStandardLog(appenders ...string) {
 	b := bridge{
-		Logger: Logger{
-			level:     none,
-			appenders: []Appender{ConsoleAppender},
-		},
+		Logger: Logger{level: none},
 	}
 	b.SetAppenders(appenders...)
 

@@ -121,7 +121,7 @@ type rollingFileAppender struct {
 // RollingFileAppender writes formatted log messages to the specified file.
 // Filename must include the full path and logfile name. If only the file
 // name is supplied, logging will be to the current directory.
-// RollingFileAppender will create a new file each time max bytes have been
+// RollingFileAppender will create a new file each time max MB have been
 // written. New files are created with a date-time based suffix, but old files
 // are not deleted.
 // Note that RollingFileAppender will always create a new file, and never appends
@@ -185,9 +185,12 @@ func (a *rollingFileAppender) Write(p []byte) (n int, err error) {
 	if a.bytes+uint64(len(p)) >= a.max {
 		// TODO: consider what to do with any error from rotate().
 		// Just ignore and continue or exit the program?
+		// TODO: Call a LogRotateError() stub
 		a.rotate()
 	}
 	n, err = a.Writer.Write(p)
+	// TODO: Keep track of number of bytes written since last flush
+	// and force if 95% of max?
 	a.bytes += uint64(n)
 	return
 }
