@@ -2,6 +2,7 @@ package logo
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ func TestLoggerOutputSetsMessageLine(t *testing.T) {
 	l := New("Test", "debug")
 	l.SetAppenders("test")
 
-	want := 19 // the next line
+	want := 20 // the next line
 	l.Debug("A test message")
 
 	messages := appender.logMessages
@@ -38,7 +39,7 @@ func TestDefaultLoggerOutputSetsMessageLine(t *testing.T) {
 	AddAppender("test", appender)
 	SetAppenders("test")
 
-	want := 42 // the next line
+	want := 43 // the next line
 	Debug("A test message")
 
 	messages := appender.logMessages
@@ -89,8 +90,8 @@ func TestNewLoggerSetsLoggerSeverityLevelRegardlessOfCase(t *testing.T) {
 	}
 }
 
-func TestNewLoggerSetsLoggerSeverityLevelToDebugIfNotRecognised(t *testing.T) {
-	want := debug
+func TestNewLoggerSetsLoggerSeverityLevelToNoneIfNotRecognised(t *testing.T) {
+	want := none
 	defer reset()
 	logger := New("Test", "unknown")
 	got := logger.level
@@ -215,7 +216,7 @@ func TestNewLoggerAddsConsoleAppender(t *testing.T) {
 	want := reflect.TypeOf(&consoleAppender{})
 	defer reset()
 	l := New("Test", "debug")
-	appenders := l.a
+	appenders := l.appenders
 	if len(appenders) != 1 {
 		t.Errorf("Appenders count got %d, want 1", len(appenders))
 		return
@@ -234,7 +235,7 @@ func TestLoggerSetAppendersOverwritesExisting(t *testing.T) {
 	l := New("Test", "debug")
 	l.SetAppenders("TestAppender")
 
-	appenders := l.a
+	appenders := l.appenders
 	if len(appenders) != 1 {
 		t.Errorf("Appenders count got %d, want 1", len(appenders))
 		return
@@ -253,7 +254,7 @@ func TestLoggerSetAppendersAcceptsMultipleAppenders(t *testing.T) {
 	l := New("Test", "debug")
 	l.SetAppenders("TestAppender", "console")
 
-	appenders := l.a
+	appenders := l.appenders
 	if len(appenders) != 2 {
 		t.Errorf("Appenders count got %d, want 1", len(appenders))
 		return
@@ -267,23 +268,18 @@ func TestLoggerSetAppendersAcceptsMultipleAppenders(t *testing.T) {
 	}
 }
 
-func TestLoggerSetAppendersPanicsWhenUnrecognisedAppender(t *testing.T) {
+func TestLoggerSetAppendersreturnsErrorWhenUnrecognisedAppender(t *testing.T) {
 	want := `unrecognised appender, [UnknownAppender]`
-	defer func() {
-		if r := recover(); r != nil {
-			got := r
-			if got != want {
-				t.Errorf("Error got %q, want %q", got, want)
-				return
-			}
-		} else {
-			t.Errorf("The code did not panic")
-		}
-	}()
-	defer reset()
-
 	l := New("Test", "debug")
-	l.SetAppenders("UnknownAppender")
+	err := l.SetAppenders("UnknownAppender")
+	if err == nil {
+		t.Errorf("Error got <nil>, want %q", want)
+		return
+	}
+	got := err.Error()
+	if got != want {
+		t.Errorf("Error got %q, want %q", got, want)
+	}
 }
 
 func TestLogManagerCloseCallsAllAppenders(t *testing.T) {
@@ -913,6 +909,49 @@ func TestDefaultLoggerSetsLogMessageSeverity(t *testing.T) {
 		sev := appender.logMessages[i].severity
 		if got := severityName[sev]; got != test.want {
 			t.Errorf("%s: got %v, want %v", test.property, got, test.want)
+		}
+	}
+}
+
+func TestCaptureStandardLogSendsPopulatedMsgToAppender(t *testing.T) {
+	defer reset()
+	timenow = func() time.Time {
+		t, _ := time.Parse("2006-01-02T15:04:05.999999999", "2016-11-19T15:14:15.123456789")
+		return t
+	}
+
+	appender := newTestAppender()
+	AddAppender("test", appender)
+
+	CaptureStandardLog("test")
+	log.Printf("A test message %d", 56)
+
+	//Debugf("A test message %d", 56)
+
+	messages := appender.logMessages
+
+	if len(messages) != 1 {
+		t.Errorf("Messages count: got %d, want 1", len(messages))
+		return
+	}
+
+	var tests = []struct {
+		property string
+		f        func(*LogMessage) interface{}
+		want     interface{}
+	}{
+		{"format", func(m *LogMessage) interface{} { return m.format }, "A test message 56"},
+		{"args.Count()", func(m *LogMessage) interface{} { return len(m.args) }, 0},
+		{"severity", func(m *LogMessage) interface{} { return m.severity }, none},
+		{"name", func(m *LogMessage) interface{} { return m.name }, ""},
+		{"file", func(m *LogMessage) interface{} { return m.file }, "log_test.go"},
+		{"ctx", func(m *LogMessage) interface{} { return m.ctx }, ""},
+		{"timestamp", func(m *LogMessage) interface{} { return string(m.timestamp) }, "2016-11-19 15:14:15.123456"},
+	}
+
+	for _, test := range tests {
+		if got := test.f(messages[0]); got != test.want {
+			t.Errorf("Message.%s: got %v, want %v", test.property, got, test.want)
 		}
 	}
 }

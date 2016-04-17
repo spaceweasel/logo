@@ -3,8 +3,10 @@ package logo
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,6 +20,7 @@ const (
 	errorMsg
 	panicMsg
 	fatal
+	none
 )
 
 var severityName = []string{
@@ -27,6 +30,7 @@ var severityName = []string{
 	"ERROR",
 	"PANIC",
 	"FATAL",
+	"",
 }
 
 func severityFromName(n string) severity {
@@ -37,7 +41,7 @@ func severityFromName(n string) severity {
 		}
 	}
 	// TODO: Should this return an error instead?
-	return severity(0)
+	return none
 }
 
 type logManager struct {
@@ -151,37 +155,6 @@ func putMessage(m *LogMessage) {
 	}
 }
 
-func (l *logManager) output(callDepth int, appenders []Appender, s severity, name, ctx string, format string, v ...interface{}) {
-	if manager.level > debug && s < manager.level {
-		return
-	}
-
-	msg := getMessage()
-	msg.severity = s
-	msg.name = name
-	msg.ctx = ctx
-	msg.args = v
-	msg.format = format
-
-	_, file, line, ok := runtime.Caller(callDepth)
-	if !ok {
-		file = "???"
-		line = 0
-	} else {
-		slash := strings.LastIndex(file, "/")
-		if slash >= 0 {
-			file = file[slash+1:]
-		}
-	}
-	msg.file = file
-	msg.line = line
-	msg.setTime(timenow().UTC())
-	for _, a := range appenders {
-		a.Append(msg)
-	}
-	putMessage(msg)
-}
-
 const digits = "0123456789" // helper to convert int to char
 
 func pad2(buf []byte, i, n int) {
@@ -214,7 +187,7 @@ func New(name string, level string) *Logger {
 	return &Logger{
 		level:     sev,
 		name:      name,
-		a:         []Appender{ConsoleAppender},
+		appenders: []Appender{ConsoleAppender},
 		callDepth: 2,
 	}
 }
@@ -223,27 +196,61 @@ func New(name string, level string) *Logger {
 // at least one default logger instance, but additional named loggers can
 // be created with the New() method.
 type Logger struct {
-	lm        *logManager
 	level     severity
 	name      string
-	a         []Appender
+	appenders []Appender
 	context   string
 	callDepth int
+}
+
+func fileline(depth int) (string, int) {
+	_, file, line, ok := runtime.Caller(depth)
+	if !ok {
+		file = "???"
+		line = 0
+	} else {
+		slash := strings.LastIndex(file, "/")
+		if slash >= 0 {
+			file = file[slash+1:]
+		}
+	}
+	return file, line
+}
+
+func (l *Logger) output(file string, line int, s severity, format string, args ...interface{}) {
+	if manager.level > debug && s < manager.level {
+		return
+	}
+	msg := getMessage()
+	msg.severity = s
+	msg.name = l.name
+	msg.ctx = l.context
+	msg.args = args
+	msg.format = format
+	msg.file = file
+	msg.line = line
+	msg.setTime(timenow().UTC())
+	for _, a := range l.appenders {
+		a.Append(msg)
+	}
+	putMessage(msg)
 }
 
 // SetAppenders specifies one or more appenders that the logger should use.
 // Appenders are specified by their string name, and must have been added to
 // the log manager previously using the AddAppender method.
 // SetAppenders will panic if an appender name is not recognised.
-func (l *Logger) SetAppenders(names ...string) {
-	l.a = []Appender{}
+func (l *Logger) SetAppenders(names ...string) error {
+	l.appenders = []Appender{}
+	var ok bool
 	for _, n := range names {
-		if a, ok := manager.appenders[n]; !ok {
-			panic(fmt.Sprintf("unrecognised appender, [%s]", n))
-		} else {
-			l.a = append(l.a, a)
+		var a Appender
+		if a, ok = manager.appenders[n]; !ok {
+			return fmt.Errorf("unrecognised appender, [%s]", n)
 		}
+		l.appenders = append(l.appenders, a)
 	}
+	return nil
 }
 
 // WithContext returns a new context logger instance. The context logger
@@ -257,10 +264,10 @@ func (l *Logger) SetAppenders(names ...string) {
 // interface, as this will dictate its format in the log message.
 func (l *Logger) WithContext(context fmt.Stringer) *Logger {
 	return &Logger{
-		level:   l.level,
-		name:    l.name,
-		a:       l.a,
-		context: context.String(),
+		level:     l.level,
+		name:      l.name,
+		appenders: l.appenders,
+		context:   context.String(),
 	}
 }
 
@@ -271,7 +278,8 @@ func (l *Logger) Debug(args ...interface{}) {
 	if l.level > debug {
 		return
 	}
-	manager.output(l.callDepth, l.a, debug, l.name, l.context, "", args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, debug, "", args...)
 }
 
 // Debugf logs with a severity of "debug". Logging only succeeds if both
@@ -281,7 +289,8 @@ func (l *Logger) Debugf(format string, args ...interface{}) {
 	if l.level > debug {
 		return
 	}
-	manager.output(l.callDepth, l.a, debug, l.name, l.context, format, args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, debug, format, args...)
 }
 
 // Info logs with a severity of "info". Logging only succeeds if both the
@@ -291,7 +300,8 @@ func (l *Logger) Info(args ...interface{}) {
 	if l.level > info {
 		return
 	}
-	manager.output(l.callDepth, l.a, info, l.name, l.context, "", args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, info, "", args...)
 }
 
 // Infof logs with a severity of "info". Logging only succeeds if both the
@@ -301,7 +311,8 @@ func (l *Logger) Infof(format string, args ...interface{}) {
 	if l.level > info {
 		return
 	}
-	manager.output(l.callDepth, l.a, info, l.name, l.context, format, args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, info, format, args...)
 }
 
 // Warn logs with a severity of "warn". Logging only succeeds if both the
@@ -311,7 +322,8 @@ func (l *Logger) Warn(args ...interface{}) {
 	if l.level > warn {
 		return
 	}
-	manager.output(l.callDepth, l.a, warn, l.name, l.context, "", args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, warn, "", args...)
 }
 
 // Warnf logs with a severity of "warn". Logging only succeeds if both the
@@ -321,7 +333,8 @@ func (l *Logger) Warnf(format string, args ...interface{}) {
 	if l.level > warn {
 		return
 	}
-	manager.output(l.callDepth, l.a, warn, l.name, l.context, format, args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, warn, format, args...)
 }
 
 // Error logs with a severity of "error". Logging only succeeds if both the
@@ -331,7 +344,8 @@ func (l *Logger) Error(args ...interface{}) {
 	if l.level > errorMsg {
 		return
 	}
-	manager.output(l.callDepth, l.a, errorMsg, l.name, l.context, "", args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, errorMsg, "", args...)
 }
 
 // Errorf logs with a severity of "error". Logging only succeeds if both the
@@ -341,7 +355,8 @@ func (l *Logger) Errorf(format string, args ...interface{}) {
 	if l.level > errorMsg {
 		return
 	}
-	manager.output(l.callDepth, l.a, errorMsg, l.name, l.context, format, args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, errorMsg, format, args...)
 }
 
 // Panic logs with a severity of "panic", and then panics with the
@@ -350,7 +365,8 @@ func (l *Logger) Errorf(format string, args ...interface{}) {
 // Arguments are handled in the same manner as fmt.Println.
 func (l *Logger) Panic(args ...interface{}) {
 	if l.level <= panicMsg {
-		manager.output(l.callDepth, l.a, panicMsg, l.name, l.context, "", args...)
+		file, line := fileline(l.callDepth)
+		l.output(file, line, panicMsg, "", args...)
 	}
 	panic(fmt.Sprint(args...))
 }
@@ -361,7 +377,8 @@ func (l *Logger) Panic(args ...interface{}) {
 // Arguments are handled in the same manner as fmt.Printf.
 func (l *Logger) Panicf(format string, args ...interface{}) {
 	if l.level <= panicMsg {
-		manager.output(l.callDepth, l.a, panicMsg, l.name, l.context, format, args...)
+		file, line := fileline(l.callDepth)
+		l.output(file, line, panicMsg, format, args...)
 	}
 	panic(fmt.Sprintf(format, args...))
 }
@@ -373,7 +390,8 @@ var exit = func(i int) { os.Exit(i) } // to facilitate testing
 // are set to "fatal" or lower.
 // Arguments are handled in the same manner as fmt.Println.
 func (l *Logger) Fatal(args ...interface{}) {
-	manager.output(l.callDepth, l.a, fatal, l.name, l.context, "", args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, fatal, "", args...)
 	Close()
 	exit(1)
 }
@@ -383,7 +401,8 @@ func (l *Logger) Fatal(args ...interface{}) {
 // are set to "fatal" or lower.
 // Arguments are handled in the same manner as fmt.Printf.
 func (l *Logger) Fatalf(format string, args ...interface{}) {
-	manager.output(l.callDepth, l.a, fatal, l.name, l.context, format, args...)
+	file, line := fileline(l.callDepth)
+	l.output(file, line, fatal, format, args...)
 	Close()
 	exit(1)
 }
@@ -482,4 +501,44 @@ func Fatalf(format string, args ...interface{}) {
 // Arguments are handled in the same manner as fmt.Println.
 func Fatal(args ...interface{}) {
 	defaultLogger.Fatal(args...)
+}
+
+func CaptureStandardLog(appenders ...string) {
+	b := bridge{
+		Logger: Logger{
+			level:     none,
+			appenders: []Appender{ConsoleAppender},
+		},
+	}
+	b.SetAppenders(appenders...)
+
+	log.SetFlags(log.Lshortfile)
+	log.SetOutput(b)
+}
+
+type bridge struct {
+	Logger
+}
+
+func (l bridge) Write(b []byte) (n int, err error) {
+	var msg string
+	file := "???"
+	line := 0
+
+	// format is "file.go:1234: message"
+	parts := bytes.SplitN(b, []byte{':'}, 3)
+	if len(parts) != 3 || len(parts[0]) == 0 || len(parts[2]) == 0 {
+		msg = fmt.Sprintf("(Invalid log format): %s", b)
+	} else {
+		file = string(parts[0])
+		msg = string(parts[2])
+		line, err = strconv.Atoi(string(parts[1]))
+		if err != nil {
+			msg = fmt.Sprintf("(Invalid line number): %s", b)
+		}
+	}
+	msg = strings.TrimSpace(msg)
+	l.output(file, line, l.level, msg)
+
+	return len(b), nil
 }
