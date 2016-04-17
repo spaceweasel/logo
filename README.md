@@ -169,7 +169,7 @@ This should be fairly self explanatory, but this means that each message will st
 There are a few more format %-tags and most have single character shorthand equivalents:
 
 Type | Tag | Shorthand | Description |Example output
----|---|---|---
+---|---|---|---|---
 Date | %date | %d | The log timestamp | 2016-01-09 05:04:05.000456
 Severity | %severity | %s | Severity method used |INFO
 Logger | %logger | | Name of the logger | MyService
