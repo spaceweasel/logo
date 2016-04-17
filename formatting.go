@@ -7,6 +7,7 @@ import (
 
 // TODO: Add formatting options e.g. alignment, customised formatting
 
+// Formatter is the interface for appender formats.
 type Formatter interface {
 	Format(l *LogMessage)
 	Names() []string
@@ -37,7 +38,7 @@ func (f *dateFormatter) Names() []string {
 type severityFormatter struct{}
 
 func (f *severityFormatter) Format(m *LogMessage) {
-	m.WriteString(m.severity)
+	m.WriteString(severityName[m.severity])
 }
 
 func (f *severityFormatter) Names() []string {

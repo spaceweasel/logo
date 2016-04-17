@@ -340,7 +340,7 @@ func TestLoggerDebugfSendsPopulatedMsgToAppender(t *testing.T) {
 			}
 			return 0
 		}, 56},
-		{"severity", func(m *LogMessage) interface{} { return m.severity }, "DEBUG"},
+		{"severity", func(m *LogMessage) interface{} { return m.severity }, debug},
 		{"name", func(m *LogMessage) interface{} { return m.name }, "Test"},
 		{"file", func(m *LogMessage) interface{} { return m.file }, "log_test.go"},
 		{"ctx", func(m *LogMessage) interface{} { return m.ctx }, ""},
@@ -386,7 +386,7 @@ func TestDefaultLoggerDebugfSendsPopulatedMsgToAppender(t *testing.T) {
 			}
 			return 0
 		}, 56},
-		{"severity", func(m *LogMessage) interface{} { return m.severity }, "DEBUG"},
+		{"severity", func(m *LogMessage) interface{} { return m.severity }, debug},
 		{"name", func(m *LogMessage) interface{} { return m.name }, ""},
 		{"file", func(m *LogMessage) interface{} { return m.file }, "log_test.go"},
 		{"ctx", func(m *LogMessage) interface{} { return m.ctx }, ""},
@@ -427,7 +427,7 @@ func TestLoggerSendsMsgToEachAppender(t *testing.T) {
 			}
 			return 0
 		}, 56},
-		{"severity", func(m *LogMessage) interface{} { return m.severity }, "DEBUG"},
+		{"severity", func(m *LogMessage) interface{} { return m.severity }, debug},
 		{"name", func(m *LogMessage) interface{} { return m.name }, "Test"},
 		{"file", func(m *LogMessage) interface{} { return m.file }, "log_test.go"},
 	}
@@ -799,8 +799,8 @@ func TestLoggerSetsLogMessageSeverity(t *testing.T) {
 			defer func() { recover() }()
 			test.f()
 		}()
-
-		if got := appender.logMessages[i].severity; got != test.want {
+		sev := appender.logMessages[i].severity
+		if got := severityName[sev]; got != test.want {
 			t.Errorf("%s: got %v, want %v", test.property, got, test.want)
 		}
 	}
@@ -910,7 +910,8 @@ func TestDefaultLoggerSetsLogMessageSeverity(t *testing.T) {
 			defer func() { recover() }()
 			test.f()
 		}()
-		if got := appender.logMessages[i].severity; got != test.want {
+		sev := appender.logMessages[i].severity
+		if got := severityName[sev]; got != test.want {
 			t.Errorf("%s: got %v, want %v", test.property, got, test.want)
 		}
 	}

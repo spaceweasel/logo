@@ -5,7 +5,7 @@ import "testing"
 func testMessage() *LogMessage {
 	d := []byte("2016-04-09 18:03:28.342017")
 	msg := LogMessage{
-		severity:  "INFO",
+		severity:  info,
 		name:      "Logger",
 		ctx:       "{ctx: 2}",
 		args:      []interface{}{34, 56},

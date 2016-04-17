@@ -78,11 +78,50 @@ func TestConsoleAppenderSetFormatReturnsErrorWhenInvalidSyntax(t *testing.T) {
 	}
 }
 
+func TestConsoleAppenderWithSingleFilter(t *testing.T) {
+	want := 0
+
+	appender := newConsoleAppender()
+	appender.SetFilters("warn")
+	var b bytes.Buffer
+	appender.out = &b
+	appender.SetFormat("%s-%m")
+
+	m := testMessage()
+	m.severity = info
+	appender.Append(m)
+
+	got := len(b.Bytes())
+	if got != want {
+		t.Errorf("Message length got %d, want %d", got, want)
+	}
+}
+
+func TestConsoleAppenderWithMultipleSingleFilters(t *testing.T) {
+	want := "INFO-Test 34 (56)"
+
+	appender := newConsoleAppender()
+	appender.SetFilters("debug", "info", "warn")
+	var b bytes.Buffer
+	appender.out = &b
+	appender.SetFormat("%s-%m")
+
+	m := testMessage()
+	m.severity = info
+	appender.Append(m)
+
+	got := string(b.Bytes())
+	if got != want {
+		t.Errorf("Message got %q, want %q", got, want)
+	}
+}
+
 func TestRollingFileAppenderWithDefaultFormat(t *testing.T) {
 	want := "2016-04-09 18:03:28.342017 INFO (sample.go:456) - Test 34 (56)\n"
 
 	appender := &rollingFileAppender{max: 1024}
 	appender.SetFormat(defaultFormat)
+	appender.SetFilters(severityName...)
 	var b bytes.Buffer
 	appender.Writer = bufio.NewWriter(&b)
 
@@ -115,6 +154,42 @@ func TestRollingFileAppenderTracksBytesWritten(t *testing.T) {
 	want := uint64(l)
 
 	appender := &rollingFileAppender{max: 1024}
+	appender.SetFormat(defaultFormat)
+	appender.SetFilters(severityName...)
+	var b bytes.Buffer
+	appender.Writer = bufio.NewWriter(&b)
+
+	m := testMessage()
+	appender.Append(m)
+	got := appender.bytes
+	if got != want {
+		t.Errorf("Bytes written got %d, want %d", got, want)
+	}
+}
+
+func TestRollingFileAppenderWithSingleFilter(t *testing.T) {
+	want := uint64(0)
+
+	appender := &rollingFileAppender{max: 1024}
+	appender.SetFilters("warn")
+	appender.SetFormat(defaultFormat)
+	var b bytes.Buffer
+	appender.Writer = bufio.NewWriter(&b)
+
+	m := testMessage()
+	appender.Append(m)
+	got := appender.bytes
+	if got != want {
+		t.Errorf("Bytes written got %d, want %d", got, want)
+	}
+}
+
+func TestRollingFileAppenderWithMultipleSingleFilters(t *testing.T) {
+	l := len("2016-04-09 18:03:28.342017 INFO (sample.go:456) - Test 34 (56)\n")
+	want := uint64(l)
+
+	appender := &rollingFileAppender{max: 1024}
+	appender.SetFilters("debug", "info", "warn")
 	appender.SetFormat(defaultFormat)
 	var b bytes.Buffer
 	appender.Writer = bufio.NewWriter(&b)
