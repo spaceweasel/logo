@@ -47,13 +47,17 @@ func severityFromName(n string) severity {
 type logManager struct {
 	appenders map[string]Appender
 	level     severity
+	loggers   map[string]*Logger
 }
 
 var manager = newLogManager()
 var defaultLogger = newDefaultLogger()
 
 func newLogManager() *logManager {
-	m := logManager{appenders: make(map[string]Appender)}
+	m := logManager{
+		appenders: make(map[string]Appender),
+		loggers:   make(map[string]*Logger),
+	}
 	m.appenders["console"] = ConsoleAppender
 	return &m
 }
@@ -133,25 +137,36 @@ func putMessage(m *LogMessage) {
 	}
 }
 
-// TODO: keep track of new loggers in a map to enable a
-// logo.GetNamedLogger(s string) method.
-
 // New returns a new logger instance.
-// Name can be any string value and is included in any log output
+// Name can be any (non empty) string and is included in any log output
 // (if specified in the appender format string). Normally this would be
 // the name of a package using the logger. Level specifies the minimum
 // severity for successful logging.
 // For example, if the Warn() or Info() methods are called on a logger
 // with severity level "info", then logging will be successful, but calls
 // to Debug() will not.
+// New panics if a logger with the same name has been created previously.
 func New(name string, level string) *Logger {
+	if _, ok := manager.loggers[name]; ok {
+		panic("duplicate logger name")
+	}
 	sev := severityFromName(level)
-	return &Logger{
+	logger := &Logger{
 		level:     sev,
 		name:      name,
 		appenders: []Appender{ConsoleAppender},
 		callDepth: 2,
 	}
+	manager.loggers[name] = logger
+	return logger
+}
+
+// LoggerByName returns a pointer to a logger named n.
+// LoggerByName returns false and a nil pointer if no
+// such named logger exists.
+func LoggerByName(n string) (*Logger, bool) {
+	l, err := manager.loggers[n]
+	return l, err
 }
 
 // Logger is a named logger owned by the log manager. The log manager has

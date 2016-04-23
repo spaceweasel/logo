@@ -67,6 +67,60 @@ func TestNewLoggerSetsLoggerName(t *testing.T) {
 	}
 }
 
+func TestLoggerByNameReturnsTrueWhenLoggerFound(t *testing.T) {
+	want := true
+	defer reset()
+
+	New("Test", "test")
+
+	_, ok := LoggerByName("Test")
+	got := ok
+	if got != want {
+		t.Errorf("LoggerByName got %t, want %t", got, want)
+	}
+}
+
+func TestLoggerByNameReturnsFalseWhenLoggerNotFound(t *testing.T) {
+	want := false
+
+	_, ok := LoggerByName("Test")
+	got := ok
+	if got != want {
+		t.Errorf("LoggerByName got %t, want %t", got, want)
+	}
+}
+
+func TestLoggerByNameReturnsLogger(t *testing.T) {
+	want := true
+	defer reset()
+
+	logger := New("Test", "test")
+
+	named, _ := LoggerByName("Test")
+	got := named == logger
+	if got != want {
+		t.Errorf("LoggerByName same logger got %q, want %q", got, want)
+	}
+}
+
+func TestLoggerNewPanicsWhenDuplicateName(t *testing.T) {
+	want := "duplicate logger name"
+	defer reset()
+	defer func() {
+		if r := recover(); r != nil {
+			got := r
+			if got != want {
+				t.Errorf("LoggerByName panic: got %q, want %q", got, want)
+			}
+		} else {
+			t.Errorf("the code did not panic")
+		}
+	}()
+
+	New("Test", "test")
+	New("Test", "test")
+}
+
 func TestNewLoggerSetsLoggerSeverityLevel(t *testing.T) {
 	want := info
 	defer reset()
