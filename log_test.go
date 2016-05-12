@@ -55,6 +55,32 @@ func TestDefaultLoggerOutputSetsMessageLine(t *testing.T) {
 	}
 }
 
+// IMPORTANT: Keep this as the second test to ensure line number remains the same
+func TestContextLoggerOutputSetsMessageLine(t *testing.T) {
+	defer reset()
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	cl := l.WithContext(logContext{correlationID: 45})
+
+	want := 69 // the next line
+	cl.Debug("A test message")
+
+	messages := appender.logMessages
+
+	if len(messages) != 1 {
+		t.Errorf("Messages count got %d, want 1", len(messages))
+		return
+	}
+
+	got := messages[0].line
+	if got != want {
+		t.Errorf("Message.line got %d, want %d", got, want)
+	}
+}
+
 func TestNewLoggerSetsLoggerName(t *testing.T) {
 	want := "Test"
 	defer reset()
@@ -67,39 +93,27 @@ func TestNewLoggerSetsLoggerName(t *testing.T) {
 	}
 }
 
-func TestLoggerByNameReturnsTrueWhenLoggerFound(t *testing.T) {
-	want := true
-	defer reset()
-
-	New("Test", "test")
-
-	_, ok := LoggerByName("Test")
-	got := ok
-	if got != want {
-		t.Errorf("LoggerByName got %t, want %t", got, want)
-	}
-}
-
-func TestLoggerByNameReturnsFalseWhenLoggerNotFound(t *testing.T) {
-	want := false
-
-	_, ok := LoggerByName("Test")
-	got := ok
-	if got != want {
-		t.Errorf("LoggerByName got %t, want %t", got, want)
-	}
-}
-
 func TestLoggerByNameReturnsLogger(t *testing.T) {
 	want := true
 	defer reset()
 
 	logger := New("Test", "test")
 
-	named, _ := LoggerByName("Test")
+	named := LoggerByName("Test")
 	got := named == logger
 	if got != want {
-		t.Errorf("LoggerByName same logger got %q, want %q", got, want)
+		t.Errorf("LoggerByName same logger got %t, want %t", got, want)
+	}
+}
+
+func TestLoggerByNameReturnsNewLoggerWhenNotFound(t *testing.T) {
+	want := "Test"
+	defer reset()
+
+	named := LoggerByName("Test")
+	got := named.name
+	if got != want {
+		t.Errorf("Logger name got %q, want %q", got, want)
 	}
 }
 

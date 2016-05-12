@@ -162,11 +162,14 @@ func New(name string, level string) *Logger {
 }
 
 // LoggerByName returns a pointer to a logger named n.
-// LoggerByName returns false and a nil pointer if no
-// such named logger exists.
-func LoggerByName(n string) (*Logger, bool) {
-	l, err := manager.loggers[n]
-	return l, err
+// If no such named logger exists, LoggerByName creates
+// a new logger instance with default level.
+func LoggerByName(n string) *Logger {
+	l, ok := manager.loggers[n]
+	if !ok {
+		l = New(n, "")
+	}
+	return l
 }
 
 // Logger is a named logger owned by the log manager. The log manager has
@@ -245,6 +248,7 @@ func (l *Logger) WithContext(context fmt.Stringer) *Logger {
 		level:     l.level,
 		name:      l.name,
 		appenders: l.appenders,
+		callDepth: l.callDepth,
 		context:   context.String(),
 	}
 }
