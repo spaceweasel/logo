@@ -132,10 +132,11 @@ type rollingFileAppender struct {
 // blocking. Buffered data is written to disk every 30 seconds and when Close
 // is called.
 // RollingFileAppender uses the default format.
-func RollingFileAppender(filename string, max uint64) (Appender, error) {
+func RollingFileAppender(filename string, max int) (Appender, error) {
+	m := uint64(max) * 1024 * 1024 // megabytes
 	a := rollingFileAppender{
 		filename: filename,
-		max:      max * 1024 * 1024, // megabytes
+		max:      m,
 	}
 	a.SetFormat(defaultFormat)
 	a.SetFilters(severityName...)
