@@ -539,6 +539,158 @@ func TestLoggerOutputPadsDateElementsWithLeadingZeros(t *testing.T) {
 	}
 }
 
+func TestGlobalPropertiesAreAddedToOutput(t *testing.T) {
+	want := "Guavas"
+	defer reset()
+
+	SetGlobalProperty("Fruit", "Guavas")
+
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	l.Debug("More Cheese")
+
+	messages := appender.logMessages
+
+	if len(messages) != 1 {
+		t.Errorf("Messages count: got %d, want 1", len(messages))
+		return
+	}
+
+	props := messages[0].properties
+
+	got, ok := props["Fruit"]
+
+	if !ok || got != want {
+		t.Errorf("Fruit property: got %v, want %q", got, want)
+	}
+}
+
+func TestLoggerContextPropertiesAreAddedToOutput(t *testing.T) {
+	want := "Lychees"
+	defer reset()
+
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	cp := map[string]interface{}{"Fruit": "Lychees"}
+	cl := l.WithContextProperties(cp)
+
+	cl.Debug("More Cheese")
+
+	messages := appender.logMessages
+
+	if len(messages) != 1 {
+		t.Errorf("Messages count: got %d, want 1", len(messages))
+		return
+	}
+
+	props := messages[0].properties
+
+	got, ok := props["Fruit"]
+
+	if !ok || got != want {
+		t.Errorf("Fruit property: got %v, want %q", got, want)
+	}
+}
+
+func TestLoggerContextPropertiesOverrideGlobalProperties(t *testing.T) {
+	want := "Lychees"
+	defer reset()
+
+	SetGlobalProperty("Fruit", "Guavas")
+
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	cp := map[string]interface{}{"Fruit": "Lychees"}
+	cl := l.WithContextProperties(cp)
+
+	cl.Debug("More Cheese")
+
+	messages := appender.logMessages
+
+	if len(messages) != 1 {
+		t.Errorf("Messages count: got %d, want 1", len(messages))
+		return
+	}
+
+	props := messages[0].properties
+
+	got, ok := props["Fruit"]
+
+	if !ok || got != want {
+		t.Errorf("Fruit property: got %v, want %q", got, want)
+	}
+}
+
+func TestLoggerSetContextProperty(t *testing.T) {
+	want := "Lychees"
+	defer reset()
+
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	cp := map[string]interface{}{"Fruit": "Guavas"}
+	cl := l.WithContextProperties(cp)
+
+	cl.SetContextProperty("Fruit", "Lychees")
+	cl.Debug("More Cheese")
+
+	messages := appender.logMessages
+
+	if len(messages) != 1 {
+		t.Errorf("Messages count: got %d, want 1", len(messages))
+		return
+	}
+
+	props := messages[0].properties
+
+	got, ok := props["Fruit"]
+
+	if !ok || got != want {
+		t.Errorf("Fruit property: got %v, want %q", got, want)
+	}
+}
+
+func TestLoggerContextPropertiesOverrideGlobalProperties2(t *testing.T) {
+	want := "Guavas"
+	defer reset()
+
+	SetGlobalProperty("Fruit", "Guavas")
+
+	appender := newTestAppender()
+	AddAppender("test", appender)
+	appender.SetFormat("%m and %property{Fruit}")
+	l := New("Test", "debug")
+	l.SetAppenders("test")
+
+	l.Debug("More Cheese")
+
+	messages := appender.logMessages
+
+	if len(messages) != 1 {
+		t.Errorf("Messages count: got %d, want 1", len(messages))
+		return
+	}
+
+	props := messages[0].properties
+
+	got, ok := props["Fruit"]
+
+	if !ok || got != want {
+		t.Errorf("Fruit property: got %v, want %q", got, want)
+	}
+}
+
 type logContext struct {
 	correlationID int
 }

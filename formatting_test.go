@@ -8,14 +8,15 @@ import (
 func testMessage() *LogMessage {
 	t, _ := time.Parse("2006-01-02T15:04:05.999999", "2016-04-09T18:03:28.3420170")
 	msg := LogMessage{
-		severity:  info,
-		name:      "Logger",
-		ctx:       "{ctx: 2}",
-		args:      []interface{}{34, 56},
-		format:    "Test %d (%d)",
-		timestamp: t,
-		file:      "sample.go",
-		line:      456,
+		severity:   info,
+		name:       "Logger",
+		ctx:        "{ctx: 2}",
+		args:       []interface{}{34, 56},
+		format:     "Test %d (%d)",
+		timestamp:  t,
+		file:       "sample.go",
+		line:       456,
+		properties: map[string]interface{}{"prop1": "value1", "prop2": 45},
 	}
 	return &msg
 }
@@ -35,6 +36,7 @@ func TestFormatterNames(t *testing.T) {
 		{"contextFormatter", &contextFormatter{}, "context,c,"},
 		{"messageFormatter", &messageFormatter{}, "message,m,"},
 		{"newlineFormatter", &newlineFormatter{}, "newline,n,"},
+		{"propertyFormatter", &propertyFormatter{}, "property,p,"},
 	}
 
 	for _, test := range tests {
@@ -63,6 +65,7 @@ func TestFormatterResults(t *testing.T) {
 		{"contextFormatter", &contextFormatter{}, "{ctx: 2}"},
 		{"messageFormatter", &messageFormatter{}, "Test 34 (56)"},
 		{"newlineFormatter", &newlineFormatter{}, "\n"},
+		{"propertyFormatter", &propertyFormatter{p: "prop1"}, "value1"},
 	}
 
 	for _, test := range tests {
@@ -126,6 +129,11 @@ func TestExtractor(t *testing.T) {
 		{"%s%s %%logger (%f:%line)%n", "INFOINFO %logger (sample.go:456)\n"},
 		{"blah more%", "blah more%"},
 		{"blah more%%", "blah more%"},
+		{"Property value is %property{prop1}", "Property value is value1"},
+		{"Property value is %p{prop1}", "Property value is value1"},
+		{"Property value is %property{prop1} today", "Property value is value1 today"},
+		{"Property values are %property{prop1} and %property{prop2}", "Property values are value1 and 45"},
+		{"Property value is [%property{missing}]", "Property value is []"},
 	}
 
 	for _, test := range tests {
@@ -149,6 +157,7 @@ func TestExtractorReturnsErrorWhenInvalidSyntax(t *testing.T) {
 		{"bla%h blah", "invalid syntax at position 3, bla%h blah"},
 		{"bla%%%h blah", "invalid syntax at position 5, bla%%%h blah"},
 		{"%blah blah", "invalid syntax at position 0, %blah blah"},
+		{"blah %property{fish", "invalid syntax - unclosed parameter brace at position 14, blah %property{fish"},
 	}
 
 	for _, test := range tests {

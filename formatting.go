@@ -3,6 +3,7 @@ package logo
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -13,6 +14,7 @@ import (
 type Formatter interface {
 	Format(l *LogMessage)
 	Names() []string
+	WithParameter(name string) Formatter
 }
 
 type literalFormatter struct {
@@ -25,6 +27,10 @@ func (f *literalFormatter) Format(m *LogMessage) {
 
 func (f *literalFormatter) Names() []string {
 	return []string{}
+}
+
+func (f *literalFormatter) WithParameter(name string) Formatter {
+	return &literalFormatter{s: name}
 }
 
 func newDateFormatter() *dateFormatter {
@@ -69,6 +75,10 @@ func (f *dateFormatter) setTime(t time.Time) {
 
 func (f *dateFormatter) Names() []string {
 	return []string{"date", "d"}
+}
+
+func (f *dateFormatter) WithParameter(name string) Formatter {
+	return newDateFormatter()
 }
 
 func newTmpBuffer() *tmpBuffer {
@@ -120,6 +130,10 @@ func (f *severityFormatter) Names() []string {
 	return []string{"severity", "s"}
 }
 
+func (f *severityFormatter) WithParameter(name string) Formatter {
+	return &severityFormatter{}
+}
+
 type loggerFormatter struct{}
 
 func (f *loggerFormatter) Format(m *LogMessage) {
@@ -128,6 +142,10 @@ func (f *loggerFormatter) Format(m *LogMessage) {
 
 func (f *loggerFormatter) Names() []string {
 	return []string{"logger"}
+}
+
+func (f *loggerFormatter) WithParameter(name string) Formatter {
+	return &loggerFormatter{}
 }
 
 type fileFormatter struct{}
@@ -140,6 +158,10 @@ func (f *fileFormatter) Names() []string {
 	return []string{"file", "f"}
 }
 
+func (f *fileFormatter) WithParameter(name string) Formatter {
+	return &fileFormatter{}
+}
+
 type lineFormatter struct{}
 
 func (f *lineFormatter) Format(m *LogMessage) {
@@ -150,6 +172,11 @@ func (f *lineFormatter) Names() []string {
 	return []string{"line"}
 }
 
+func (f *lineFormatter) WithParameter(name string) Formatter {
+	return &lineFormatter{}
+}
+
+// Deprecated: contextFormatter is deprecated - use propertyFormatter instead.
 type contextFormatter struct{}
 
 func (f *contextFormatter) Format(m *LogMessage) {
@@ -158,6 +185,10 @@ func (f *contextFormatter) Format(m *LogMessage) {
 
 func (f *contextFormatter) Names() []string {
 	return []string{"context", "c"}
+}
+
+func (f *contextFormatter) WithParameter(name string) Formatter {
+	return &contextFormatter{}
 }
 
 type messageFormatter struct{}
@@ -174,6 +205,10 @@ func (f *messageFormatter) Names() []string {
 	return []string{"message", "m"}
 }
 
+func (f *messageFormatter) WithParameter(name string) Formatter {
+	return &messageFormatter{}
+}
+
 type newlineFormatter struct{}
 
 func (f *newlineFormatter) Format(m *LogMessage) {
@@ -182,6 +217,31 @@ func (f *newlineFormatter) Format(m *LogMessage) {
 
 func (f *newlineFormatter) Names() []string {
 	return []string{"newline", "n"}
+}
+
+func (f *newlineFormatter) WithParameter(name string) Formatter {
+	return &newlineFormatter{}
+}
+
+type propertyFormatter struct {
+	p string
+}
+
+func (f *propertyFormatter) Format(m *LogMessage) {
+	v, ok := m.properties[f.p]
+	if !ok {
+		return
+	}
+
+	m.WriteString(fmt.Sprint(v))
+}
+
+func (f *propertyFormatter) Names() []string {
+	return []string{"property", "p"}
+}
+
+func (f *propertyFormatter) WithParameter(name string) Formatter {
+	return &propertyFormatter{p: name}
 }
 
 var formatters = []Formatter{
@@ -193,6 +253,7 @@ var formatters = []Formatter{
 	&contextFormatter{},
 	&messageFormatter{},
 	&newlineFormatter{},
+	&propertyFormatter{},
 }
 
 func extract(format string) ([]Formatter, error) {
@@ -226,12 +287,24 @@ func extract(format string) ([]Formatter, error) {
 			for _, f := range formatters {
 				for _, t := range f.Names() {
 					if len(t) <= len(format[i:]) {
+
 						if t == format[i:i+len(t)] {
+							i = i + len(t)
+							if i < len(format) && format[i] == '{' {
+								j := strings.IndexByte(format[i:], byte('}'))
+								if j == -1 {
+									return nil, fmt.Errorf("invalid syntax - unclosed parameter brace at position %d, %s", i, format)
+								}
+								name := format[i+1 : i+j]
+								i = i + j + 1
+								f = f.WithParameter(name)
+							}
+							i--
 							s = append(s, f)
-							i = i + len(t) - 1
 							ok = true
 							break
 						}
+
 					}
 				}
 				if ok {

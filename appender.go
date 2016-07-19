@@ -280,16 +280,20 @@ type testAppender struct {
 
 func (a *testAppender) Append(m *LogMessage) {
 	n := &LogMessage{
-		format:    m.format,
-		severity:  m.severity,
-		name:      m.name,
-		file:      m.file,
-		line:      m.line,
-		ctx:       m.ctx,
-		timestamp: m.timestamp,
+		format:     m.format,
+		severity:   m.severity,
+		name:       m.name,
+		file:       m.file,
+		line:       m.line,
+		ctx:        m.ctx,
+		timestamp:  m.timestamp,
+		properties: make(map[string]interface{}, len(m.properties)),
 	}
 	for _, a := range m.args {
 		n.args = append(n.args, a)
+	}
+	for k, v := range m.properties {
+		n.properties[k] = v
 	}
 
 	a.logMessages = append(a.logMessages, n)

@@ -177,7 +177,8 @@ File | %file | %f | Source filename where the log request was made| service.go
 Line | %line | | Line in source file where log request was made| 345
 Message | %message | %m | The concatenated log message details| The chickens have exploded
 New Line | %newline | %n | Appends a \n|
-Context | %context | %c | The logging context (see Logging Context) | CorrelationID: 45
+~~Context~~ [Deprectated]| ~~%context~~ | ~~%c~~ | ~~The logging context (see Logging Context)~~ | ~~CorrelationID: 45~~
+Property | %property{name} | %p | A global or context property value | 192.168.1.34
 
 
 The format of an appender can be changed using its `SetFormat` method:
@@ -346,6 +347,7 @@ logo.CaptureStandardLog("main", "console")
 ```
 
 ## Context
+*Note: The WithContext method has been deprecated - use WithContextProperties instead*
 
 In some of the earlier examples, log messages were created containing user information:
 
@@ -355,32 +357,21 @@ log.Debug("Starting calculation", currentUser, count)
 log.Debugf("Starting calculation (User: %s) - Input quantity: %d", currentUser, count)
 ```
 
-It would be much cleaner if the log calls did not have to be cluttered with such contextual information. Logo provides the `WithContext` method which can be called on any named logger. The `WithContext` method returns a clone of the logger, but with embedded contextual information which can be included in appender message formats using the %context (or %c) tag.
+It would be much cleaner if the log calls did not have to be cluttered with such contextual information. Logo provides the `WithContextProperties` method which can be called on any named logger. The `WithContextProperties` method returns a clone of the logger, but with embedded contextual information which can be included in appender message formats using the %property (or %p) tag.
 
 ```go
-type context struct{
-  userID string
-}
-
-// context objects can be anything but must implement the Stringer interface,
-// as this is what will be used to write the data
-func (c context) String() string {
-  return fmt.Sprintf("User: %s", c.userID)
-}
-
-
 // create a new named logger
 a := logo.RollingFileAppender("service.log", 5)
-// include context in appender format (%c)
-a.SetFormat("%l %s [%c] - %m%n")
+// include context in appender format (%property or shorthand %p)
+a.SetFormat("%l %s [User: %p{user-id}] - %m%n")
 logo.AddAppender("calc", a)
 log := logo.New("Calculator", "info")
 log.SetAppenders("calc")
 
 ...
 
-ctx := context{4523}
-clog := log.WithContext(ctx)
+ctx := map[string]interface{}{"user-id": currentUser} // e.g. 4523
+clog := log.WithContextProperties(ctx)
 
 ...
 
@@ -392,3 +383,55 @@ clog.Debug("Starting calculation...")
 clog.Debug("Calculation  finished!")
 // Calculator DEBUG [User: 4523] - Calculation  finished!
 ```
+### SetContextProperty
+
+The SetContextProperty method can be used to add or update an existing logger property:
+
+```go
+// create a new named logger
+a := logo.RollingFileAppender("service.log", 5)
+// include context in appender format (%property or shorthand %p)
+a.SetFormat("%l %s [User: %p{user-id}, IP: %p{remote-ip}] - %m%n")
+logo.AddAppender("calc", a)
+log := logo.New("Calculator", "info")
+log.SetAppenders("calc")
+
+...
+
+ctx := make(map[string]interface{})
+clog := log.WithContextProperties(ctx)
+...
+
+// add or update context logger properties
+clog.SetContextProperty("user-id", currentUser)
+clog.SetContextProperty("remote-ip", remoteAddr)
+
+...
+
+clog.Debug("Starting calculation...")
+// Calculator DEBUG [User: 4523, IP: 192.168.1.78] - Starting calculation...
+```
+
+### SetGlobalProperty
+
+SetGlobalProperty is similar to SetContextProperty except that it adds or updates global properties within the logging system. This can be useful when including _application specific_ properties, such as, server-id, cluster-id, machinename, etc.
+
+```go
+// set the global property
+logo.SetGlobalProperty("hostname", getMachineName())
+
+// create a new named logger
+a := logo.RollingFileAppender("service.log", 5)
+// include context in appender format (%property or shorthand %p)
+a.SetFormat("%l %s [%p{hostname}] - %m%n")
+logo.AddAppender("calc", a)
+log := logo.New("Calculator", "info")
+log.SetAppenders("calc")
+
+...
+log.Debug("Starting calculation...")
+// Calculator DEBUG [mymachine.mydomain.com] - Starting calculation...
+
+```
+
+Global and contextual properties can be used together or individually, but if a contextual property is set with the same name as a global property, then the contextual value will be used in the contextual logger output.

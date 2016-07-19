@@ -45,9 +45,10 @@ func severityFromName(n string) severity {
 }
 
 type logManager struct {
-	appenders map[string]Appender
-	level     severity
-	loggers   map[string]*Logger
+	appenders  map[string]Appender
+	level      severity
+	loggers    map[string]*Logger
+	properties map[string]interface{}
 }
 
 var manager = newLogManager()
@@ -55,8 +56,9 @@ var defaultLogger = newDefaultLogger()
 
 func newLogManager() *logManager {
 	m := logManager{
-		appenders: make(map[string]Appender),
-		loggers:   make(map[string]*Logger),
+		appenders:  make(map[string]Appender),
+		loggers:    make(map[string]*Logger),
+		properties: make(map[string]interface{}),
 	}
 	m.appenders["console"] = ConsoleAppender
 	return &m
@@ -66,6 +68,19 @@ func newDefaultLogger() *Logger {
 	l := New("", "debug")
 	l.callDepth = 3
 	return l
+}
+
+// SetGlobalProperty adds or updates a global level property in the log manager.
+// During log output, global properties are combined with any contextual logger
+// properties, and passed to the appenders. Standard appenders can include a
+// property value by specifying it in the appender format string using the
+// %property{name} syntax. For example:
+//
+//   "%date %severity - %property{cluster-id} %message%newline"
+//
+// Note: global properties can be overridden by contextual loggers.
+func SetGlobalProperty(name string, v interface{}) {
+	manager.properties[name] = v
 }
 
 // Close closes all appenders in the log manager.
@@ -91,14 +106,15 @@ func AddAppender(name string, a Appender) error {
 // LogMessage is the structure passed to each appender of a logger.
 type LogMessage struct {
 	bytes.Buffer
-	format    string
-	args      []interface{}
-	severity  severity
-	name      string
-	file      string
-	line      int
-	ctx       string
-	timestamp time.Time
+	format     string
+	args       []interface{}
+	severity   severity
+	name       string
+	file       string
+	line       int
+	ctx        string
+	timestamp  time.Time
+	properties map[string]interface{}
 }
 
 // SetManagerLevel sets the minimum severity level for logging.
@@ -152,10 +168,11 @@ func New(name string, level string) *Logger {
 	}
 	sev := severityFromName(level)
 	logger := &Logger{
-		level:     sev,
-		name:      name,
-		appenders: []Appender{ConsoleAppender},
-		callDepth: 2,
+		level:      sev,
+		name:       name,
+		appenders:  []Appender{ConsoleAppender},
+		callDepth:  2,
+		properties: make(map[string]interface{}),
 	}
 	manager.loggers[name] = logger
 	return logger
@@ -176,12 +193,13 @@ func LoggerByName(n string) *Logger {
 // at least one default logger instance, but additional named loggers can
 // be created with the New() method.
 type Logger struct {
-	level     severity
-	name      string
-	appenders []Appender
-	context   string
-	callDepth int
-}
+	level      severity
+	name       string
+	appenders  []Appender
+	context    string
+	callDepth  int
+	properties map[string]interface{}
+} //m.properties = make(map[string]interface{}, len(manager.properties))
 
 func fileline(depth int) (string, int) {
 	_, file, line, ok := runtime.Caller(depth)
@@ -209,6 +227,15 @@ func (l *Logger) output(file string, line int, s severity, format string, args .
 	msg.format = format
 	msg.file = file
 	msg.line = line
+
+	msg.properties = make(map[string]interface{}, len(l.properties)+len(manager.properties))
+	for k, v := range manager.properties {
+		msg.properties[k] = v
+	}
+	for k, v := range l.properties {
+		msg.properties[k] = v
+	}
+
 	msg.timestamp = timenow()
 
 	for _, a := range l.appenders {
@@ -243,6 +270,8 @@ func (l *Logger) SetAppenders(names ...string) error {
 // header).
 // The context parameter can be any type, but must implement the fmt.Stringer
 // interface, as this will dictate its format in the log message.
+//
+// Deprecated: This method is deprecated. Use WithContextProperties instead.
 func (l *Logger) WithContext(context fmt.Stringer) *Logger {
 	return &Logger{
 		level:     l.level,
@@ -251,6 +280,36 @@ func (l *Logger) WithContext(context fmt.Stringer) *Logger {
 		callDepth: l.callDepth,
 		context:   context.String(),
 	}
+}
+
+// WithContextProperties returns a new child, context logger instance.
+// The context logger is identical to its parent, with the exception that logger
+// properties are updated with those specified in the context parameter. Logger
+// properties are included in the log output to enable consumption by the
+// appenders. Standard appenders can include a property by specifying it in the
+// appender format string using the %property{} syntax. For example:
+//
+//   "%date %severity - %property{username} %message%newline"
+//
+// Its primary purpose is for situations where you have a service which uses a
+// named logger for general purpose logging, but also needs to log some messages
+// with contextual/user-related data (e.g. an HTTP correlationID header, or a username).
+// Global level properties can be set using SetGlobalProperty().
+//
+// Note: context properties override global properties with the same name.
+func (l *Logger) WithContextProperties(context map[string]interface{}) *Logger {
+	return &Logger{
+		level:      l.level,
+		name:       l.name,
+		appenders:  l.appenders,
+		callDepth:  l.callDepth,
+		properties: context,
+	}
+}
+
+// SetContextProperty adds or updates the named context property with the value v.
+func (l *Logger) SetContextProperty(name string, v interface{}) {
+	l.properties[name] = v
 }
 
 // Debug logs with a severity of "debug". Logging only succeeds if both
