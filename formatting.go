@@ -1,6 +1,7 @@
 package logo
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,7 +15,7 @@ import (
 type Formatter interface {
 	Format(l *LogMessage)
 	Names() []string
-	WithParameter(name string) Formatter
+	WithParameter(p string) Formatter
 }
 
 type literalFormatter struct {
@@ -29,8 +30,8 @@ func (f *literalFormatter) Names() []string {
 	return []string{}
 }
 
-func (f *literalFormatter) WithParameter(name string) Formatter {
-	return &literalFormatter{s: name}
+func (f *literalFormatter) WithParameter(p string) Formatter {
+	return &literalFormatter{s: p}
 }
 
 func newDateFormatter() *dateFormatter {
@@ -77,7 +78,7 @@ func (f *dateFormatter) Names() []string {
 	return []string{"date", "d"}
 }
 
-func (f *dateFormatter) WithParameter(name string) Formatter {
+func (f *dateFormatter) WithParameter(p string) Formatter {
 	return newDateFormatter()
 }
 
@@ -130,7 +131,7 @@ func (f *severityFormatter) Names() []string {
 	return []string{"severity", "s"}
 }
 
-func (f *severityFormatter) WithParameter(name string) Formatter {
+func (f *severityFormatter) WithParameter(p string) Formatter {
 	return &severityFormatter{}
 }
 
@@ -144,7 +145,7 @@ func (f *loggerFormatter) Names() []string {
 	return []string{"logger"}
 }
 
-func (f *loggerFormatter) WithParameter(name string) Formatter {
+func (f *loggerFormatter) WithParameter(p string) Formatter {
 	return &loggerFormatter{}
 }
 
@@ -158,7 +159,7 @@ func (f *fileFormatter) Names() []string {
 	return []string{"file", "f"}
 }
 
-func (f *fileFormatter) WithParameter(name string) Formatter {
+func (f *fileFormatter) WithParameter(p string) Formatter {
 	return &fileFormatter{}
 }
 
@@ -172,7 +173,7 @@ func (f *lineFormatter) Names() []string {
 	return []string{"line"}
 }
 
-func (f *lineFormatter) WithParameter(name string) Formatter {
+func (f *lineFormatter) WithParameter(p string) Formatter {
 	return &lineFormatter{}
 }
 
@@ -187,7 +188,7 @@ func (f *contextFormatter) Names() []string {
 	return []string{"context", "c"}
 }
 
-func (f *contextFormatter) WithParameter(name string) Formatter {
+func (f *contextFormatter) WithParameter(p string) Formatter {
 	return &contextFormatter{}
 }
 
@@ -205,7 +206,7 @@ func (f *messageFormatter) Names() []string {
 	return []string{"message", "m"}
 }
 
-func (f *messageFormatter) WithParameter(name string) Formatter {
+func (f *messageFormatter) WithParameter(p string) Formatter {
 	return &messageFormatter{}
 }
 
@@ -219,16 +220,16 @@ func (f *newlineFormatter) Names() []string {
 	return []string{"newline", "n"}
 }
 
-func (f *newlineFormatter) WithParameter(name string) Formatter {
+func (f *newlineFormatter) WithParameter(p string) Formatter {
 	return &newlineFormatter{}
 }
 
 type propertyFormatter struct {
-	p string
+	name string
 }
 
 func (f *propertyFormatter) Format(m *LogMessage) {
-	v, ok := m.properties[f.p]
+	v, ok := m.properties[f.name]
 	if !ok {
 		return
 	}
@@ -240,8 +241,51 @@ func (f *propertyFormatter) Names() []string {
 	return []string{"property", "p"}
 }
 
-func (f *propertyFormatter) WithParameter(name string) Formatter {
-	return &propertyFormatter{p: name}
+func (f *propertyFormatter) WithParameter(p string) Formatter {
+	return &propertyFormatter{name: p}
+}
+
+type jsonFormatter struct{}
+
+func (f *jsonFormatter) Format(m *LogMessage) {
+	d := make(map[string]interface{})
+	d["@timestamp"] = m.timestamp
+	d["@version"] = "1"
+	d["level"] = severityName[m.severity]
+	d["level_value"] = m.severity
+	d["logger_name"] = m.name
+	d["file"] = m.file
+	d["line"] = m.line
+
+	for k, v := range m.properties {
+		d[k] = v
+	}
+
+	if len(m.format) > 0 {
+		d["message"] = fmt.Sprintf(m.format, m.args...)
+	} else {
+		if len(m.args) == 1 {
+			d["message"] = m.args[0]
+		} else {
+			d["message"] = m.args
+		}
+	}
+
+	b, err := json.Marshal(d)
+	if err != nil {
+		return
+	}
+
+	m.Write(b)
+}
+
+func (f *jsonFormatter) Names() []string {
+	return []string{"JSON"}
+}
+
+func (f *jsonFormatter) WithParameter(p string) Formatter {
+	// TODO: Consider indent option
+	return &jsonFormatter{}
 }
 
 var formatters = []Formatter{

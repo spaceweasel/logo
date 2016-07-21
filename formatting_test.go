@@ -1,6 +1,7 @@
 package logo
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -37,6 +38,7 @@ func TestFormatterNames(t *testing.T) {
 		{"messageFormatter", &messageFormatter{}, "message,m,"},
 		{"newlineFormatter", &newlineFormatter{}, "newline,n,"},
 		{"propertyFormatter", &propertyFormatter{}, "property,p,"},
+		{"jsonFormatter", &jsonFormatter{}, "JSON,"},
 	}
 
 	for _, test := range tests {
@@ -65,7 +67,7 @@ func TestFormatterResults(t *testing.T) {
 		{"contextFormatter", &contextFormatter{}, "{ctx: 2}"},
 		{"messageFormatter", &messageFormatter{}, "Test 34 (56)"},
 		{"newlineFormatter", &newlineFormatter{}, "\n"},
-		{"propertyFormatter", &propertyFormatter{p: "prop1"}, "value1"},
+		{"propertyFormatter", &propertyFormatter{name: "prop1"}, "value1"},
 	}
 
 	for _, test := range tests {
@@ -168,6 +170,138 @@ func TestExtractorReturnsErrorWhenInvalidSyntax(t *testing.T) {
 		got := err.Error()
 		if got != test.want {
 			t.Errorf("%s got %q, want %q", test.format, got, test.want)
+		}
+	}
+}
+
+func TestJsonFormatterResultsWithFormattedStringMessage(t *testing.T) {
+	var tests = []struct {
+		property string
+		key      string
+		want     interface{}
+	}{
+		{"timestamp", "@timestamp", "2016-04-09T18:03:28.342017Z"},
+		{"version", "@version", "1"},
+		{"level", "level", "INFO"},
+		{"level_value", "level_value", 1.0}, // force to float64
+		{"file", "file", "sample.go"},
+		{"line", "line", 456.0}, // force to float64
+		{"prop1", "prop1", "value1"},
+		{"prop2", "prop2", 45.0}, // force to float64
+		{"message", "message", "Test 34 (56)"},
+	}
+
+	formatter := &jsonFormatter{}
+	m := testMessage()
+	formatter.Format(m)
+	jsonString := m.Bytes()
+	var obj map[string]interface{}
+	json.Unmarshal(jsonString, &obj)
+
+	for _, test := range tests {
+		got := obj[test.key]
+		if got != test.want {
+			t.Errorf("%s got %v, want %v", test.property, got, test.want)
+		}
+	}
+}
+
+func TestJsonFormatterResultsWithSimpleStructMessage(t *testing.T) {
+	var tests = []struct {
+		property string
+		key      string
+		want     interface{}
+	}{
+		{"Name", "Name", "Jeff"},
+		{"Size", "Size", 22.0}, // force to float64
+	}
+
+	formatter := &jsonFormatter{}
+	arg := struct {
+		Name string
+		Size int
+	}{"Jeff", 22}
+
+	m := &LogMessage{args: []interface{}{arg}}
+
+	formatter.Format(m)
+	jsonString := m.Bytes()
+	var obj map[string]interface{}
+	json.Unmarshal(jsonString, &obj)
+
+	logMsg := obj["message"].(map[string]interface{})
+	if logMsg == nil {
+		t.Errorf("Log message is not a map")
+		return
+	}
+
+	for _, test := range tests {
+		got := logMsg[test.key]
+		if got != test.want {
+			t.Errorf("%s got %v, want %v", test.property, got, test.want)
+		}
+	}
+}
+
+func TestJsonFormatterResultsWithSimpleStringMessage(t *testing.T) {
+	want := "Excessive camel eyelid length"
+
+	formatter := &jsonFormatter{}
+	m := &LogMessage{args: []interface{}{"Excessive camel eyelid length"}}
+
+	formatter.Format(m)
+	jsonString := m.Bytes()
+	var obj map[string]interface{}
+	json.Unmarshal(jsonString, &obj)
+
+	got := obj["message"]
+
+	if got != want {
+		t.Errorf("Log message got %v, want %q", got, want)
+	}
+}
+
+func TestJsonFormatterResultsWithStructArrayMessage(t *testing.T) {
+	var tests = []struct {
+		property string
+		index    int
+		key      string
+		want     interface{}
+	}{
+		{"Name", 0, "Name", "Jeff"},
+		{"Size", 0, "Size", 22.0}, // force to float64
+		{"Name", 1, "Name", "Cheese"},
+		{"Size", 1, "Size", 67.0}, // force to float64
+	}
+
+	formatter := &jsonFormatter{}
+	args := []struct {
+		Name string
+		Size int
+	}{{"Jeff", 22}, {"Cheese", 67}}
+
+	m := &LogMessage{args: []interface{}{args}}
+
+	formatter.Format(m)
+	jsonString := m.Bytes()
+	var obj map[string]interface{}
+	json.Unmarshal(jsonString, &obj)
+
+	logMsgObs := obj["message"].([]interface{})
+	if logMsgObs == nil {
+		t.Errorf("Log message got %t, want array", obj["message"])
+		return
+	}
+	if len(logMsgObs) != 2 {
+		t.Errorf("Log message count got %d, want 2", len(logMsgObs))
+		return
+	}
+
+	for _, test := range tests {
+		ob := logMsgObs[test.index].(map[string]interface{})
+		got := ob[test.key]
+		if got != test.want {
+			t.Errorf("%s got %v, want %v", test.property, got, test.want)
 		}
 	}
 }
