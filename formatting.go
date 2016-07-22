@@ -298,6 +298,7 @@ var formatters = []Formatter{
 	&messageFormatter{},
 	&newlineFormatter{},
 	&propertyFormatter{},
+	&jsonFormatter{},
 }
 
 func extract(format string) ([]Formatter, error) {

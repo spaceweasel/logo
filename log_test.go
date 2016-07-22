@@ -118,7 +118,7 @@ func TestLoggerByNameReturnsNewLoggerWhenNotFound(t *testing.T) {
 }
 
 func TestLoggerNewPanicsWhenDuplicateName(t *testing.T) {
-	want := "duplicate logger name"
+	want := `duplicate logger name, "Test"`
 	defer reset()
 	defer func() {
 		if r := recover(); r != nil {

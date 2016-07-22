@@ -164,7 +164,7 @@ func putMessage(m *LogMessage) {
 // New panics if a logger with the same name has been created previously.
 func New(name string, level string) *Logger {
 	if _, ok := manager.loggers[name]; ok {
-		panic("duplicate logger name")
+		panic(fmt.Sprintf("duplicate logger name, %q", name))
 	}
 	sev := severityFromName(level)
 	logger := &Logger{
