@@ -179,7 +179,7 @@ Message | %message | %m | The concatenated log message details| The chickens hav
 New Line | %newline | %n | Appends a \n|
 ~~Context~~ [Deprectated]| ~~%context~~ | ~~%c~~ | ~~The logging context (see Logging Context)~~ | ~~CorrelationID: 45~~
 Property | %property{name} | %p | A global or context property value | 192.168.1.34
-
+JSON | %JSON | | Entire output as JSON |  
 
 The format of an appender can be changed using its `SetFormat` method:
 
@@ -212,7 +212,27 @@ A divide by zero error will produce the log message:
 
 #### RollingFileAppender
 
-Real applications normally need to persist their log data. `RollingFileAppender` is a buffered appender which writes to a named file; when a certain number of bytes have been written, it closes the file and creates a new file and writes to that instead. Rolling file appenders are created with a filename and a maximum file size (in MB). For example, `appender:= logo.RollingFileAppender("service.log", 5)`. This will use the name provided plus a time based suffix to create a new log file, when 5MB of data have been written, a new file is created as before, using the name provided and a new time based suffix. The name provided must include the full path and logfile name prefix; logging will be in the current directory if only filename is supplied. (*Note that currently old files are not deleted - you must do this manually*).
+Real applications normally need to persist their log data. `RollingFileAppender` is a buffered appender which writes to a named file; when a certain number of bytes have been written, it closes the file and creates a new file and writes to that instead. Rolling file appenders are created with a `RollingFileConfig` which specifies the filename and maximum file size (in MB). For example,
+```go
+appender:= logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5, // in MB
+})
+```
+This appender will use the filename provided plus a time/PID based suffix to create a new log file. When 5MB of data have been written, a new file is created as before, using the filename provided, but a new time/PID based suffix. The filename provided must include the full path and name of the file prefix; logging will be in the current directory no path is supplied. (*Note that currently old files are not deleted - you must perform any purging manually*).
+
+An example log file name is `service.log.20160726-091757.3160`, but in some environments it is necessary to retain the original filename extension. This can be achieved by setting the `PreserveExtension` config property:
+
+```go
+appender:= logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+  PreserveExtension: true,
+})
+```
+
+This will result in log files with names like: `service.20160726-091757.3160.log`
+
 
 RollingFileAppender uses a large memory buffer to improve performance and reduce blocking. Data in the buffer is written to file every 30 seconds, or when a file is closed. Therefore, if you are tailing the log file, you won't necessarily see log messages immediately.
 
@@ -224,7 +244,10 @@ Once an appender has been created, it must be added to the log manager before it
 
 ```go
 // create new appender
-appender := logo.RollingFileAppender("service.log", 5)
+appender := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+})
 
 // add to the log manager with the alias "calc"
 logo.AddAppender("calc", appender)
@@ -239,7 +262,11 @@ log.SetAppenders("calc")
 Each logger is initialized with the console logger, but calling `SetAppenders` will overwrite this. The `SetAppenders` method is variadic, so you can include multiple appenders:
 
 ```go
-a := logo.RollingFileAppender("service.log", 5)
+a := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+})
+
 logo.AddAppender("calc", a)
 log := logo.New("Calculator", "info")
 
@@ -266,7 +293,11 @@ func init(){
   validationLog = logo.New("Validation", "info")
   dbLog = logo.New("Database", "warn")
 
-  a := logo.RollingFileAppender("service.log", 5)
+  a := logo.RollingFileAppender(logo.RollingFileConfig{
+    Filename:"service.log",
+    MaxFileSize: 5,
+  })
+
   logo.AddAppender("default", a)
 
   mainLog.SetAppenders("default", "console")
@@ -278,7 +309,11 @@ func init(){
 You can even assign appenders to the global logger:
 
 ```go
-a := logo.RollingFileAppender("service.log", 5)
+a := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+})
+
 logo.AddAppender("default", a)
 
 // Notice calling package name "logo" not "log"
@@ -290,7 +325,11 @@ logo.SetAppenders("default", "console")
 Appenders can have filters which only permit messages to be written if their severity level matches that in the filter list. By default, no filtering occurs, and all messages passed to an appender are logged. To specify a filter, use the `SetFilters` method:
 
 ```go
-ea := logo.RollingFileAppender("error.log", 5)
+ea := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"error.log",
+  MaxFileSize: 5,
+})
+
 logo.AddAppender("errApp", ea)
 
 // set a filter to ignore anything other than "ERROR" messages
@@ -314,15 +353,27 @@ Why might you want to set filtering on an appender? Flexibility.
 Logo tries to provide as much flexibility as possible. Some system designers prefer to have a single log file to which everything is logged, regardless of the message severity. Others like to have different log files for different areas of their application, with each log file holding messages of varying severity. Finally, some designers prefer the approach of severity based log files. For example, `info.log`, `warning.log` and `error.log`; typically only errors are logged to `error.log`, but warnings *and* errors are logged to `warning.log` and everything is logged to `info.log`. This approach can be achieved using filters and the global logger:
 
 ```go
-ea := logo.RollingFileAppender("error.log", 5)
+ea := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"error.log",
+  MaxFileSize: 5,
+})
+
 logo.AddAppender("errors", ea)
 ea.SetFilters("error", "panic", "fatal") // errors only
 
-wa := logo.RollingFileAppender("warning.log", 5)
+wa := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"warning.log",
+  MaxFileSize: 5,
+})
+
 logo.AddAppender("warnings", wa)
 wa.SetFilters("error", "warn", "panic", "fatal") // errors and warnings
 
-ia := logo.RollingFileAppender("info.log", 5)
+ia := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"info.log",
+  MaxFileSize: 5,
+})
+
 logo.AddAppender("information", ia)
 // don't set any filters for the information appender - we want everything
 
@@ -339,7 +390,11 @@ logo.Panic("This will log to all three log files, then panic!")
 Sometimes your application needs to log data from packages which use the standard "log" package, but are outside your control. You can use logo to intercept these log messages and have them sent to one or more appenders, by using the `CaptureStandardLog` method:
 
 ```go
-a := logo.RollingFileAppender("service.log", 5)
+a := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+})
+
 logo.AddAppender("main", a)
 
 // intercepts standard log package logging and writes to console and service.log
@@ -360,8 +415,12 @@ log.Debugf("Starting calculation (User: %s) - Input quantity: %d", currentUser, 
 It would be much cleaner if the log calls did not have to be cluttered with such contextual information. Logo provides the `WithContextProperties` method which can be called on any named logger. The `WithContextProperties` method returns a clone of the logger, but with embedded contextual information which can be included in appender message formats using the %property (or %p) tag.
 
 ```go
-// create a new named logger
-a := logo.RollingFileAppender("service.log", 5)
+// create new appender
+a := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+})
+
 // include context in appender format (%property or shorthand %p)
 a.SetFormat("%l %s [User: %p{user-id}] - %m%n")
 logo.AddAppender("calc", a)
@@ -388,8 +447,12 @@ clog.Debug("Calculation  finished!")
 The SetContextProperty method can be used to add or update an existing logger property:
 
 ```go
-// create a new named logger
-a := logo.RollingFileAppender("service.log", 5)
+// create new appender
+a := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+})
+
 // include context in appender format (%property or shorthand %p)
 a.SetFormat("%l %s [User: %p{user-id}, IP: %p{remote-ip}] - %m%n")
 logo.AddAppender("calc", a)
@@ -420,8 +483,12 @@ SetGlobalProperty is similar to SetContextProperty except that it adds or update
 // set the global property
 logo.SetGlobalProperty("hostname", getMachineName())
 
-// create a new named logger
-a := logo.RollingFileAppender("service.log", 5)
+// create new appender
+a := logo.RollingFileAppender(logo.RollingFileConfig{
+  Filename:"service.log",
+  MaxFileSize: 5,
+})
+
 // include context in appender format (%property or shorthand %p)
 a.SetFormat("%l %s [%p{hostname}] - %m%n")
 logo.AddAppender("calc", a)
