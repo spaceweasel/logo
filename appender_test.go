@@ -212,9 +212,47 @@ func TestLogNameAddsDateToFilename(t *testing.T) {
 
 	filename := "test.log"
 
-	l := logname(filename)
+	l := logname(filename, "")
 
 	got := strings.TrimSuffix(l, strconv.Itoa(pid))
+
+	if got != want {
+		t.Errorf("Logname got %q, want %q", got, want)
+	}
+}
+
+func TestLogNameAppendsExtensionToFilename(t *testing.T) {
+	pidStr := strconv.Itoa(pid)
+	want := "test.20161119-151415." + pidStr + ".log"
+	timenow = func() time.Time {
+		t, _ := time.Parse("2006-01-02T15:04:05.999999999", "2016-11-19T15:14:15.123456789")
+		return t
+	}
+	defer reset()
+
+	filename := "test"
+	ext := ".log"
+
+	got := logname(filename, ext)
+
+	if got != want {
+		t.Errorf("Logname got %q, want %q", got, want)
+	}
+}
+
+func TestLogNameSuffixNotAffectedByEmptyExtension(t *testing.T) {
+	pidStr := strconv.Itoa(pid)
+	want := "test.20161119-151415." + pidStr
+	timenow = func() time.Time {
+		t, _ := time.Parse("2006-01-02T15:04:05.999999999", "2016-11-19T15:14:15.123456789")
+		return t
+	}
+	defer reset()
+
+	filename := "test"
+	ext := ""
+
+	got := logname(filename, ext)
 
 	if got != want {
 		t.Errorf("Logname got %q, want %q", got, want)

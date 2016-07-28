@@ -249,7 +249,7 @@ type jsonFormatter struct{}
 
 func (f *jsonFormatter) Format(m *LogMessage) {
 	d := make(map[string]interface{})
-	d["@timestamp"] = m.timestamp
+	d["@timestamp"] = m.timestamp.UTC() // TODO: pull "UTC" out into format options
 	d["@version"] = "1"
 	d["level"] = severityName[m.severity]
 	d["level_value"] = m.severity

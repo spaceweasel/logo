@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -104,10 +106,34 @@ func (a *consoleAppender) Close() {
 	// to satisfy interface
 }
 
+// RollingFileConfig holds key parameters for configuring a RollingFileAppender.
+// Filename must include the full path and logfile name. If only the file name
+// is supplied, logging will be to the current directory.
+// MaxFileSize is the maximum size in MB for an individual log file, before the
+// appender rolls to a new file. New files can be created before an existing
+// reaches its maximum size because of the way RollingFileAppender always
+// creates new files at application start.
+// New files are created with a date-time.PID suffix. For example, if the
+// filename is "my.log", then log files will be named something like:
+//
+//   my.log.20160726-091757.3160
+//
+// In certain environments, it is necessary to retain the original file
+// extension. This can be achieved by setting the PreserveExtension property
+// which would produce:
+//
+//   my.20160726-091757.3160.log
+type RollingFileConfig struct {
+	Filename          string
+	MaxFileSize       int
+	PreserveExtension bool
+}
+
 type rollingFileAppender struct {
 	*bufio.Writer
 	mu       sync.Mutex
 	filename string
+	ext      string
 	file     *os.File
 	// TODO: split filename into dir & file parts
 	//directory *string
@@ -118,26 +144,38 @@ type rollingFileAppender struct {
 }
 
 // RollingFileAppender returns a new rollingfile appender instance.
-// RollingFileAppender writes formatted log messages to the specified file.
-// Filename must include the full path and logfile name. If only the file
-// name is supplied, logging will be to the current directory.
-// RollingFileAppender will create a new file each time max MB have been
-// written. New files are created with a date-time based suffix, but old files
-// are not deleted.
-// Note that RollingFileAppender will always create a new file, and never appends
-// to an exiting file. If an application is started and stopped quickly several
-// times, then this will result in the creation of the same number of log files;
-// even though max bytes may not have been written to any of them.
+// RollingFileAppender writes formatted log messages to the file specified in
+// config. RollingFileAppender will create a new file each time the maximum
+// filesize limit has been reached. New files are created with a date-time (and
+// PID) based suffix, but the original filename extension can be preserved if
+// required by setting the PreserveExtension config property.
+//
+// Old files are not deleted by this appender; it is up to the consumer to handle
+// any purging.
+//
+// Note that RollingFileAppender will always create a new file at application
+// start, and never opens an existing file to append to it. If an application is
+// started and stopped quickly several times, then this will result in the
+// creation of the same number of log files; even though max bytes may not have
+// been written to any of them.
 // RollingFileAppender buffers messages to improve performance and reduce
 // blocking. Buffered data is written to disk every 30 seconds and when Close
 // is called.
+//
 // RollingFileAppender uses the default format.
-func RollingFileAppender(filename string, max int) (Appender, error) {
-	m := uint64(max) * 1024 * 1024 // megabytes
+func RollingFileAppender(config RollingFileConfig) (Appender, error) {
+
+	m := uint64(config.MaxFileSize) * 1024 * 1024 // megabytes
 	a := rollingFileAppender{
-		filename: filename,
+		filename: config.Filename,
 		max:      m,
 	}
+
+	if config.PreserveExtension {
+		a.ext = filepath.Ext(a.filename)
+		a.filename = strings.TrimSuffix(a.filename, a.ext)
+	}
+
 	a.SetFormat(defaultFormat)
 	a.SetFilters(severityName...)
 	// if a.directory == nil {
@@ -216,7 +254,7 @@ func (a *rollingFileAppender) rotate() error {
 		a.Close()
 	}
 	a.bytes = 0
-	name := logname(a.filename)
+	name := logname(a.filename, a.ext)
 	var err error
 	a.file, err = os.Create(name)
 	if err != nil {
@@ -231,9 +269,9 @@ func (a *rollingFileAppender) rotate() error {
 
 var pid = os.Getpid()
 
-func logname(fname string) string {
+func logname(fname string, ext string) string {
 	t := timenow().UTC()
-	return fmt.Sprintf("%s.%04d%02d%02d-%02d%02d%02d.%d",
+	return fmt.Sprintf("%s.%04d%02d%02d-%02d%02d%02d.%d%s",
 		fname,
 		t.Year(),
 		t.Month(),
@@ -241,7 +279,8 @@ func logname(fname string) string {
 		t.Hour(),
 		t.Minute(),
 		t.Second(),
-		pid)
+		pid,
+		ext)
 }
 
 func (a *rollingFileAppender) Close() {
