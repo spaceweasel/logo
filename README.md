@@ -320,6 +320,9 @@ logo.AddAppender("default", a)
 logo.SetAppenders("default", "console")  
 ```
 
+#### TestAppender
+TODO:
+
 ### Filtering
 
 Appenders can have filters which only permit messages to be written if their severity level matches that in the filter list. By default, no filtering occurs, and all messages passed to an appender are logged. To specify a filter, use the `SetFilters` method:
