@@ -362,3 +362,26 @@ func TestTestAppenderReset(t *testing.T) {
 		}
 	}
 }
+
+func TestTestAppenderMessagesWhenMultiple(t *testing.T) {
+	want := "2016-04-09 18:03:28.342017 INFO (sample.go:456) - Multitest 45\n"
+
+	appender := newTestAppender()
+	m := testMessage()
+	appender.Append(m)
+	appender.Append(m)
+	m.format = "Multitest %d"
+	m.args = []interface{}{45}
+
+	appender.Append(m)
+	msgs := appender.Messages
+
+	if len(msgs) != 3 {
+		t.Errorf("Message count got %d, want 3", len(msgs))
+		return
+	}
+	got := msgs[2]
+	if got != want {
+		t.Errorf("DefaultFormat got %q, want %q", got, want)
+	}
+}

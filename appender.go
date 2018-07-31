@@ -336,6 +336,7 @@ func (a *testAppender) Append(m *LogMessage) {
 	}
 
 	a.logMessages = append(a.logMessages, n)
+	a.buf.Reset()
 	a.consoleAppender.Append(m)
 	s := string(a.buf.Bytes())
 	a.Messages = append(a.Messages, s)
