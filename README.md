@@ -1,4 +1,4 @@
-# Logo [![Build Status](https://travis-ci.org/spaceweasel/logo.svg?branch=master)](https://travis-ci.org/spaceweasel/logo) [![Coverage Status](http://codecov.io/github/spaceweasel/logo/coverage.svg?branch=master)](http://codecov.io/github/spaceweasel/logo?branch=master) [![GoDoc](http://img.shields.io/badge/godoc-reference-5272B4.svg)](https://godoc.org/github.com/spaceweasel/logo) [![MIT](https://img.shields.io/npm/l/express.svg)](https://github.com/spaceweasel/logo/blob/master/LICENSE)
+# Logo [![Build Status](https://travis-ci.org/spaceweasel/logo.svg?branch=master)](https://travis-ci.org/spaceweasel/logo) [![Coverage Status](https://codecov.io/github/spaceweasel/logo/coverage.svg?branch=master)](https://codecov.io/github/spaceweasel/logo?branch=master) [![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg)](https://godoc.org/github.com/spaceweasel/logo) [![MIT](https://img.shields.io/npm/l/express.svg)](https://github.com/spaceweasel/logo/blob/master/LICENSE)
 
 Logo is a highly configurable logging package for Golang providing:
 
