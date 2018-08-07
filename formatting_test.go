@@ -180,10 +180,8 @@ func TestJsonFormatterResultsWithFormattedStringMessage(t *testing.T) {
 		key      string
 		want     interface{}
 	}{
-		{"timestamp", "@timestamp", "2016-04-09T18:03:28.342017Z"},
-		{"version", "@version", "1"},
+		{"timestamp", "service_timestamp", "2016-04-09T18:03:28.342017Z"},
 		{"level", "level", "INFO"},
-		{"level_value", "level_value", 1.0}, // force to float64
 		{"file", "file", "sample.go"},
 		{"line", "line", 456.0}, // force to float64
 		{"prop1", "prop1", "value1"},
@@ -303,5 +301,24 @@ func TestJsonFormatterResultsWithStructArrayMessage(t *testing.T) {
 		if got != test.want {
 			t.Errorf("%s got %v, want %v", test.property, got, test.want)
 		}
+	}
+}
+
+func TestJsonFormatterLoggerName(t *testing.T) {
+	want := "Aardvark"
+
+	formatter := &jsonFormatter{}
+	m := &LogMessage{name: "Aardvark"}
+
+	formatter.Format(m)
+	jsonString := m.Bytes()
+	var obj map[string]interface{}
+	json.Unmarshal(jsonString, &obj)
+
+	logger := obj["logger"].(map[string]interface{})
+	got := logger["name"]
+
+	if got != want {
+		t.Errorf("Logger name got %v, want %q", got, want)
 	}
 }
